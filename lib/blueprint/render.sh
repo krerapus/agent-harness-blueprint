@@ -132,7 +132,7 @@ render_menu() {
 
   render_panel_open "Commands" "$width"
   render_panel_cmd_row "1" "init" "HARNESS.md + agent reference + memory" "$width"
-  render_panel_cmd_row "2" "install" "Blueprint + runtime (cursor / claude / codex / all)" "$width"
+  render_panel_cmd_row "2" "install" "Blueprint + runtime + skill-mode (rebase / merge)" "$width"
   render_panel_cmd_row "3" "sync" "Re-apply installed blueprint" "$width"
   render_panel_cmd_row "4" "update" "Version check + refresh managed context" "$width"
   render_panel_cmd_row "5" "doctor" "Validate package / target health" "$width"

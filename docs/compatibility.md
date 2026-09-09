@@ -34,7 +34,7 @@ This repository is the **shared blueprint package**. Consuming projects receive 
 ## How adopting projects work
 
 1. Run `./blueprint init --target /path/to/repo` — writes `HARNESS.md`, injects a managed harness reference into `AGENTS.md` or existing `agents.md` (creates `AGENTS.md` when neither exists), memory skeletons, and a managed `.gitignore` section from `templates/gitignore`. Does **not** modify existing `CLAUDE.md`.
-2. Run `./blueprint install <blueprint> --runtime all --target /path/to/repo` — projects `harness/` into `.cursor/`, `.claude/`, and/or `.agents/`.
+2. Run `./blueprint install <blueprint> --runtime all --target /path/to/repo` — projects `harness/` into `.cursor/`, `.claude/`, and/or `.agents/`. `--skill-mode rebase` (default) gitignores those whole runtime dirs; `--skill-mode merge` gitignores only the blueprint-projected skills, commands, rules, and templates.
 3. Local overrides (`*.local.md`, `*.local.mdc`, `.agent-blueprint.local.yaml`) always win over managed files.
 4. Memory state files are never overwritten by install/sync when they already exist in the target.
 5. `./blueprint update` checks target vs package `VERSION`, then refreshes `HARNESS.md` and managed runtime projections; it does not touch agent instruction files.

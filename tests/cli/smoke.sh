@@ -75,8 +75,32 @@ assert_not_contains() {
   fi
 }
 
+assert_line() {
+  local label="$1" file="$2" line="$3"
+  if grep -qxF -- "$line" "$file" 2>/dev/null; then
+    echo "  PASS  $label"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL  $label (missing exact line '$line' in $file)"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+assert_not_line() {
+  local label="$1" file="$2" line="$3"
+  if grep -qxF -- "$line" "$file" 2>/dev/null; then
+    echo "  FAIL  $label (unexpected exact line '$line' in $file)"
+    FAIL=$((FAIL + 1))
+  else
+    echo "  PASS  $label"
+    PASS=$((PASS + 1))
+  fi
+}
+
 cleanup() {
-  rm -rf "$TMP" "${TMP}-xdg" "${TMP}-empty" "${TMP}-remote-consumer" "${TMP}-targets.json"
+  rm -rf "$TMP" "${TMP}-xdg" "${TMP}-empty" "${TMP}-remote-consumer" "${TMP}-targets.json" \
+    "${TMP}-merge" "${TMP}-merge-claude" "${TMP}-merge-gitlab" "${TMP}-merge-targets.json" \
+    "${TMP}-del-custom"
 }
 trap cleanup EXIT
 
@@ -98,6 +122,10 @@ assert_file "HARNESS.md written" "$TMP/HARNESS.md"
 assert_file "state written" "$TMP/.agent-blueprint.yaml"
 assert_contains "gitignore ignores .agents/" "$(cat "$TMP/.gitignore")" $'.agents/'
 assert_contains "gitignore ignores .testiny/" "$(cat "$TMP/.gitignore")" $'.testiny/'
+assert_line "init gitignore rebases .cursor/" "$TMP/.gitignore" ".cursor/"
+assert_line "init gitignore rebases .claude/" "$TMP/.gitignore" ".claude/"
+assert_line "init gitignore rebases .agents/" "$TMP/.gitignore" ".agents/"
+assert_not_contains "init gitignore has no placeholder" "$(cat "$TMP/.gitignore")" "{{RUNTIME_IGNORES}}"
 assert_contains "init summary" "$out" "Blueprint synchronization completed"
 assert_contains "init harness banner" "$out" "Blueprint initialized"
 assert_contains "managed harness markers" "$(cat "$TMP/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:START -->"
@@ -110,6 +138,63 @@ assert_dir "cursor commands" "$TMP/.cursor/commands"
 assert_file "start command" "$TMP/.cursor/commands/start.md"
 assert_contains "install completed" "$out" "Blueprint synchronization completed"
 assert_contains "source validated" "$out" "Validating source repository"
+assert_contains "default skill_mode rebase" "$(cat "$TMP/.agent-blueprint.yaml")" "skill_mode: rebase"
+assert_line "rebase install keeps .cursor/" "$TMP/.gitignore" ".cursor/"
+
+echo "== skill-mode merge =="
+saved_targets_file="$BLUEPRINT_TARGETS_FILE"
+export BLUEPRINT_TARGETS_FILE="${TMP}-merge-targets.json"
+merge_t="${TMP}-merge"
+rm -rf "$merge_t"
+mkdir -p "$merge_t"
+CI=1 NO_COLOR=1 "$BP" init --target "$merge_t" >/dev/null
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --skill-mode merge --target "$merge_t" 2>&1)"
+assert_contains "merge install completed" "$out" "Blueprint synchronization completed"
+assert_contains "state skill_mode merge" "$(cat "$merge_t/.agent-blueprint.yaml")" "skill_mode: merge"
+assert_not_line "merge does not ignore whole .cursor/" "$merge_t/.gitignore" ".cursor/"
+assert_not_line "merge does not ignore whole .claude/" "$merge_t/.gitignore" ".claude/"
+assert_not_line "merge does not ignore whole .agents/" "$merge_t/.gitignore" ".agents/"
+assert_line "merge ignores skill tree" "$merge_t/.gitignore" ".cursor/skills/task-execution/*"
+assert_line "merge ignores cursor rule" "$merge_t/.gitignore" ".cursor/rules/task-execution.mdc"
+assert_line "merge ignores start command" "$merge_t/.gitignore" ".cursor/commands/start.md"
+assert_line "merge ignores adr template" "$merge_t/.gitignore" ".cursor/templates/adr.md"
+assert_contains "merge keeps .testiny/" "$(cat "$merge_t/.gitignore")" $'.testiny/'
+assert_file "merge still projects skill" "$merge_t/.cursor/skills/task-execution/SKILL.md"
+
+out="$(CI=1 NO_COLOR=1 "$BP" sync --target "$merge_t" 2>&1)"
+assert_contains "sync preserves merge" "$out" "skill-mode=merge"
+assert_not_line "sync keeps merge gitignore" "$merge_t/.gitignore" ".cursor/"
+assert_line "sync keeps merge skill ignore" "$merge_t/.gitignore" ".cursor/skills/task-execution/*"
+
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --skill-mode rebase --target "$merge_t" 2>&1)"
+assert_contains "rebase switch completed" "$out" "Blueprint synchronization completed"
+assert_contains "state skill_mode rebase after switch" "$(cat "$merge_t/.agent-blueprint.yaml")" "skill_mode: rebase"
+assert_line "rebase switch restores .cursor/" "$merge_t/.gitignore" ".cursor/"
+assert_not_line "rebase switch drops skill glob" "$merge_t/.gitignore" ".cursor/skills/task-execution/*"
+
+merge_c="${TMP}-merge-claude"
+rm -rf "$merge_c"
+mkdir -p "$merge_c"
+CI=1 NO_COLOR=1 "$BP" init --target "$merge_c" >/dev/null
+CI=1 NO_COLOR=1 "$BP" install default --runtime claude --skill-mode merge --target "$merge_c" >/dev/null
+assert_line "merge claude rule is .md" "$merge_c/.gitignore" ".claude/rules/task-execution.md"
+assert_not_line "merge claude rule is not .mdc" "$merge_c/.gitignore" ".claude/rules/task-execution.mdc"
+
+merge_g="${TMP}-merge-gitlab"
+rm -rf "$merge_g"
+mkdir -p "$merge_g"
+CI=1 NO_COLOR=1 "$BP" init --target "$merge_g" >/dev/null
+CI=1 NO_COLOR=1 "$BP" install engineering --overlay gitlab --runtime cursor --skill-mode merge --target "$merge_g" >/dev/null
+assert_line "merge gitlab overlay command ignored" "$merge_g/.gitignore" ".cursor/commands/pr.md"
+
+set +e
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --skill-mode bogus --target "$merge_t" 2>&1)"
+rc=$?
+set -e
+assert_eq "invalid skill-mode exits 2" "$rc" "2"
+assert_contains "invalid skill-mode message" "$out" "unknown --skill-mode"
+export BLUEPRINT_TARGETS_FILE="$saved_targets_file"
+rm -f "${TMP}-merge-targets.json"
 
 echo "== sync =="
 out="$(CI=1 NO_COLOR=1 "$BP" sync --target "$TMP" 2>&1)"
@@ -332,9 +417,34 @@ assert_eq "ANTI-PATTERNS removed" "$([[ -f "$del_t/ANTI-PATTERNS.md" ]] && echo 
 assert_file "AGENTS.md preserved" "$del_t/AGENTS.md"
 assert_not_contains "harness ref stripped" "$(cat "$del_t/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:START -->"
 assert_not_contains "managed gitignore gone" "$(cat "$del_t/.gitignore" 2>/dev/null || true)" "# --- shared-agent-blueprints (managed) ---"
+rm -rf "$del_t"
+
+echo "== del preserves custom skills =="
+custom_t="${TMP}-del-custom"
+rm -rf "$custom_t"
+mkdir -p "$custom_t"
+CI=1 NO_COLOR=1 "$BP" init --target "$custom_t" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --skill-mode merge --target "$custom_t" >/dev/null 2>&1
+mkdir -p "$custom_t/.cursor/skills/my-local-skill" "$custom_t/.cursor/skills/memory-system-protocol"
+printf '# custom skill\n' > "$custom_t/.cursor/skills/my-local-skill/SKILL.md"
+printf '# leftover renamed blueprint skill\n' > "$custom_t/.cursor/skills/memory-system-protocol/SKILL.md"
+printf '{}\n' > "$custom_t/.cursor/mcp.json"
+assert_file "blueprint skill present before del" "$custom_t/.cursor/skills/task-execution/SKILL.md"
+out="$(CI=1 NO_COLOR=1 "$BP" rm --force --target "$custom_t" 2>&1)"
+assert_contains "del custom completed" "$out" "Blueprint removal completed"
+assert_file "custom skill preserved" "$custom_t/.cursor/skills/my-local-skill/SKILL.md"
+assert_file "custom mcp.json preserved" "$custom_t/.cursor/mcp.json"
+assert_dir "cursor root kept for custom files" "$custom_t/.cursor"
+assert_not_file "blueprint skill removed" "$custom_t/.cursor/skills/task-execution/SKILL.md"
+assert_not_file "obsolete renamed skill removed" "$custom_t/.cursor/skills/memory-system-protocol/SKILL.md"
+assert_not_file "blueprint start command removed" "$custom_t/.cursor/commands/start.md"
+rm -rf "$custom_t"
+
 # Help documents keyword-only del
 help_out="$(CI=1 NO_COLOR=1 "$BP" help 2>&1)"
 assert_contains "help lists del" "$help_out" "del"
+assert_contains "help lists rm alias" "$help_out" "rm | del"
+assert_contains "help lists skill-mode" "$help_out" "--skill-mode"
 assert_contains "help lists codex runtime" "$help_out" "codex"
 assert_contains "help keyword note" "$help_out" "keyword only"
 assert_contains "help lists install-contributor" "$help_out" "install-contributor"

@@ -1,0 +1,147 @@
+name: CLI Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            goos: darwin
+            goarch: arm64
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package portable CLI archive
+        id: pkg
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          STAGE="blueprint_${VER}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "dist/${STAGE}"
+          # Bash CLI distribution (transition). Replace with Go binary build when ready.
+          cp blueprint "dist/${STAGE}/blueprint"
+          chmod +x "dist/${STAGE}/blueprint"
+          cp -R builtin "dist/${STAGE}/builtin"
+          cp -R lib "dist/${STAGE}/lib"
+          cp VERSION LICENSE README.md "dist/${STAGE}/"
+          # Keep contributor tooling optional in archive
+          if [[ -d contributor ]]; then
+            cp -R contributor "dist/${STAGE}/contributor"
+          fi
+          tar -C dist -czf "dist/${STAGE}.tar.gz" "${STAGE}"
+          if command -v shasum >/dev/null; then
+            (cd dist && shasum -a 256 "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256")
+          else
+            (cd dist && sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256")
+          fi
+          echo "asset=${STAGE}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pkg.outputs.asset }}
+          path: |
+            dist/${{ steps.pkg.outputs.asset }}
+            dist/${{ steps.pkg.outputs.asset }}.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  bump-formula:
+    needs: release
+    runs-on: ubuntu-latest
+    if: github.repository == 'krerapus/agent-harness-blueprint'
+    steps:
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: krerapus/homebrew-blueprint
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-blueprint
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Bump Formula urls and sha256
+        working-directory: homebrew-blueprint
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          FORMULA="Formula/blueprint.rb"
+          sed -i.bak "s/version \".*\"/version \"${VER}\"/" "$FORMULA"
+
+          bump_arch() {
+            local goos="$1" goarch="$2"
+            local asset="blueprint_${VER}_${goos}_${goarch}.tar.gz"
+            local sha
+            sha="$(tr -d '[:space:]' < "../dist/${asset}.sha256" | awk '{print $1}')"
+            # Replace sha256 that follows the matching url line (next sha256 after url containing asset).
+            python3 - "$FORMULA" "$asset" "$sha" <<'PY'
+          import re, sys
+          path, asset, sha = sys.argv[1:4]
+          text = open(path).read()
+          # Replace sha256 immediately after the url that mentions this asset.
+          pattern = rf'(url "[^"]*{re.escape(asset)}"[^\n]*\n\s*sha256 ")([0-9a-fA-F]{{64}})(")'
+          text2, n = re.subn(pattern, rf'\g<1>{sha}\3', text, count=1)
+          if n != 1:
+              raise SystemExit(f"failed to patch sha for {asset} (matches={n})")
+          open(path, "w").write(text2)
+          PY
+          }
+
+          bump_arch darwin arm64
+          bump_arch darwin amd64
+          bump_arch linux amd64
+          bump_arch linux arm64
+          rm -f "${FORMULA}.bak"
+
+      - name: Open PR on tap
+        working-directory: homebrew-blueprint
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          BRANCH="bump-blueprint-${VER}"
+          git config user.name "blueprint-release-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add Formula/blueprint.rb
+          git commit -m "chore: bump blueprint to ${VER}"
+          git push -u origin "$BRANCH"
+          gh pr create --title "chore: bump blueprint to ${VER}" --body "Automated formula bump from agent-harness-blueprint ${GITHUB_REF_NAME}."
