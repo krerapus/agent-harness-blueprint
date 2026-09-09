@@ -2,7 +2,9 @@
 
 Reusable multi-agent harness for **Cursor**, **Claude Code**, **OpenAI Codex**, and any tool that honors `AGENTS.md`.
 
-This repository is the **blueprint package** (CLI + canonical `harness/` content). Adopting projects run `init` → `install` before product work. Live `.cursor/` / `.claude/` / `.agents/` trees and task memory files belong in consumers only.
+This repository is the **CLI + runtime** (`agent-harness-blueprint`). Static packs live in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint). Homebrew formula: [`homebrew-blueprint`](https://github.com/krerapus/homebrew-blueprint). See [docs/architecture-split.md](docs/architecture-split.md).
+
+Adopting projects run `init` → `assets install core` (once) → `install` before product work. Live `.cursor/` / `.claude/` / `.agents/` trees and task memory files belong in consumers only.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -20,7 +22,7 @@ This package keeps harness sources canonical, projects them into tool runtimes o
 - **Blueprint profiles** — `default`, `engineering`, `startup` (+ optional GitLab overlay)
 - **Managed consumer contract** — `HARNESS.md` + harness reference in `AGENTS.md` / `agents.md`
 - **Preserve-local sync** — refreshes managed files without clobbering memory or agent bodies
-- **Interactive TTY menu** — guided `init` / `install` / `sync` / `update` / `doctor` / `del`
+- **Interactive TTY menu** — guided `init` / `install` / `sync` / `update` / `doctor` / `rm`
 - **Remote source cache** — git URL sources resolve under `$XDG_CACHE_HOME/blueprint/repos/`
 - **Docs + skills** — planning, review, commit, and specialized skill packs under `harness/`
 
@@ -72,7 +74,11 @@ cd agent-harness-blueprint
 ln -sf "$(pwd)/blueprint" /usr/local/bin/blueprint
 ```
 
-There is no npm/Homebrew package yet — install from a git checkout (or submodule / vendored copy) and symlink the `blueprint` executable.
+There is a Homebrew tap in progress (`krerapus/homebrew-blueprint`). Until the first release artifacts ship, install from a git checkout (or submodule / vendored copy) and symlink the `blueprint` executable. Then:
+
+```bash
+blueprint assets install core
+```
 
 `scripts/agent` remains a back-compat shim that forwards to `./blueprint`.
 
@@ -135,7 +141,7 @@ Commands:
   install-contributor  Project package-only contributor harness (this package root)
   update               Version check, then refresh HARNESS.md + managed runtimes
   sync                 Re-apply installed blueprint with preserve-local
-  del                  Remove blueprint from --target
+  rm / del             Remove blueprint from --target
   doctor               Validate package + target install health
 
 Blueprints:  default | engineering | startup
@@ -143,19 +149,20 @@ Blueprints:  default | engineering | startup
 Flags:
   --overlay gitlab     Install GitLab/glab command overlay
   --runtime NAME       cursor | claude | codex | all
+  --skill-mode MODE    rebase | merge (default rebase)
   --target PATH        Consumer project root
   --dry-run            Print actions without writing
-  --force              Overwrite unmanaged files; required for non-interactive del
+  --force              Overwrite unmanaged files; required for non-interactive rm/del
 ```
 
 | Step | Result |
 |---|---|
 | `init` | `HARNESS.md`, agent harness reference, memory skeletons, managed `.gitignore` — **no** tool runtime yet |
-| `install` | Projects commands/rules/skills into `.cursor/`, `.claude/`, and/or `.agents/` |
+| `install` | Projects commands/rules/skills into `.cursor/`, `.claude/`, and/or `.agents/`; writes managed `.gitignore` for `--skill-mode rebase` (whole runtime dirs) or `merge` (blueprint skills/commands/rules/templates only) |
 | `install-contributor` | Package-only: projects `contributor/` + `skill-creator` into gitignored local runtimes |
 | `update` | Version check vs package `VERSION`, refresh `HARNESS.md`, apply skill/rule renames, full-refresh managed skills/rules — never rewrites agent instruction files |
 | `sync` | Re-applies the installed blueprint (`preserve-local`); may fetch a remote `source` |
-| `del` | Removes managed blueprint + memory files; preserves agent instruction bodies |
+| `del` | Removes managed blueprint + memory files; keeps custom skills and agent instruction bodies (`rm` is an alias) |
 
 History is stored under `$XDG_DATA_HOME/blueprint/history.jsonl` (no secrets).
 
@@ -164,6 +171,9 @@ History is stored under `$XDG_DATA_HOME/blueprint/history.jsonl` (no secrets).
 ```bash
 # Core harness for any repo
 ./blueprint install default --runtime all --target ~/code/my-app
+
+# Ignore only blueprint-projected files so local skills can be committed
+./blueprint install default --runtime cursor --skill-mode merge --target ~/code/my-app
 
 # Engineering workflows + GitLab MR playbooks
 ./blueprint install engineering --overlay gitlab --runtime all --target ~/code/my-app
@@ -211,8 +221,8 @@ Package semver lives only in [`VERSION`](VERSION). See [CHANGELOG.md](CHANGELOG.
 From a consumer project:
 
 ```bash
-./blueprint del --target /path/to/your-repo          # interactive confirm
-./blueprint del --target /path/to/your-repo --force # non-interactive / CI
+./blueprint rm --target /path/to/your-repo           # interactive confirm (alias: del)
+./blueprint rm --force --target /path/to/your-repo  # non-interactive / CI
 ```
 
 Remove the PATH symlink if you added one:
@@ -221,7 +231,7 @@ Remove the PATH symlink if you added one:
 rm -f /usr/local/bin/blueprint
 ```
 
-Optionally delete the package checkout. `del` does not rewrite `AGENTS.md` / `CLAUDE.md` bodies.
+Optionally delete the package checkout. `rm` / `del` does not rewrite `AGENTS.md` / `CLAUDE.md` bodies.
 
 ## Troubleshooting
 

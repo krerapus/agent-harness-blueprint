@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lightweight package-manager style CLI for shared-agent-blueprints.
-# Usage: ./blueprint {init|install|install-contributor|update|sync|del|doctor} [blueprint] [--overlay NAME] [--runtime NAME] [--dry-run] [--force]
+# Usage: ./blueprint {init|install|install-contributor|update|sync|rm|del|doctor} [blueprint] [--overlay NAME] [--runtime NAME] [--skill-mode rebase|merge] [--dry-run] [--force]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,12 +31,19 @@ source "${ROOT}/lib/blueprint/repo.sh"
 source "${ROOT}/lib/blueprint/harness.sh"
 # shellcheck source=lib/blueprint/migrations.sh
 source "${ROOT}/lib/blueprint/migrations.sh"
+# shellcheck source=lib/blueprint/xdg.sh
+source "${ROOT}/lib/blueprint/xdg.sh"
+# shellcheck source=lib/blueprint/assets.sh
+source "${ROOT}/lib/blueprint/assets.sh"
 
 term_init
+bp_ensure_default_config
 
 cmd="${1:-}"
+ASSETS_ARGS=()
 # Flags-only invocation (e.g. ./blueprint --target ./repo) opens the menu.
-if [[ -n "$cmd" && "$cmd" == -* && "$cmd" != -h && "$cmd" != --help ]]; then
+# Keep --version / --help as real commands.
+if [[ -n "$cmd" && "$cmd" == -* && "$cmd" != -h && "$cmd" != --help && "$cmd" != --version ]]; then
   cmd="menu"
 else
   shift || true
@@ -46,32 +53,62 @@ BLUEPRINT="default"
 OVERLAY=""
 RUNTIME=""
 RUNTIME_SET=0
+SKILL_MODE="rebase"
+SKILL_MODE_SET=0
 DRY_RUN=0
 FORCE=0
 TARGET="."
 BP_START_EPOCH=0
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --overlay) OVERLAY="${2:-}"; shift 2 ;;
-    --runtime)
-      RUNTIME="${2:-}"
-      RUNTIME_SET=1
-      shift 2
-      ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    --force) FORCE=1; shift ;;
-    --target) TARGET="${2:-.}"; shift 2 ;;
-    -*)
-      echo "unknown flag: $1" >&2
+if [[ "$cmd" == "assets" ]]; then
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) DRY_RUN=1; shift ;;
+      --force) FORCE=1; shift ;;
+      --offline) ASSETS_OFFLINE=1; BLUEPRINT_OFFLINE=1; shift ;;
+      --target) TARGET="${2:-.}"; shift 2 ;;
+      *) ASSETS_ARGS+=("$1"); shift ;;
+    esac
+  done
+else
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --overlay) OVERLAY="${2:-}"; shift 2 ;;
+      --runtime)
+        RUNTIME="${2:-}"
+        RUNTIME_SET=1
+        shift 2
+        ;;
+      --skill-mode)
+        SKILL_MODE="${2:-}"
+        SKILL_MODE_SET=1
+        shift 2
+        ;;
+      --dry-run) DRY_RUN=1; shift ;;
+      --force) FORCE=1; shift ;;
+      --offline) ASSETS_OFFLINE=1; BLUEPRINT_OFFLINE=1; shift ;;
+      --target) TARGET="${2:-.}"; shift 2 ;;
+      -*)
+        echo "unknown flag: $1" >&2
+        exit 2
+        ;;
+      *)
+        BLUEPRINT="$1"
+        shift
+        ;;
+    esac
+  done
+fi
+
+if [[ "$SKILL_MODE_SET" -eq 1 ]]; then
+  case "$SKILL_MODE" in
+    rebase|merge) ;;
+    *)
+      echo "unknown --skill-mode: ${SKILL_MODE:-} (rebase|merge)" >&2
       exit 2
       ;;
-    *)
-      BLUEPRINT="$1"
-      shift
-      ;;
   esac
-done
+fi
 
 log() { printf '%s\n' "$*"; }
 warn() { printf 'warn: %s\n' "$*" >&2; }
@@ -129,6 +166,31 @@ ui_footer_fail() {
 refresh_package_paths() {
   VERSION_FILE="${PACKAGE_ROOT}/VERSION"
   MANIFEST="${PACKAGE_ROOT}/manifest.yaml"
+}
+
+# Resolve PACKAGE_ROOT from Asset Manager (assets-blueprint / cache / legacy).
+# CLI VERSION stays at ROOT/VERSION; asset content comes from the core pack.
+bp_bind_assets_package_root() {
+  local resolved=""
+  if resolved="$(assets_resolve_package_root)"; then
+    PACKAGE_ROOT="$resolved"
+    refresh_package_paths
+    return 0
+  fi
+  return 1
+}
+
+# Ensure core assets are available before install/sync/update.
+bp_require_assets() {
+  if bp_bind_assets_package_root; then
+    return 0
+  fi
+  emit_info "core assets not found — installing"
+  if assets_install_pack core; then
+    bp_bind_assets_package_root && return 0
+  fi
+  die "core assets unavailable. Run: blueprint assets install core
+  Or set BLUEPRINT_ASSETS_ROOT to an assets-blueprint checkout."
 }
 
 bp_on_interrupt() {
@@ -202,16 +264,21 @@ bp_resolve_source_for_op() {
   BP_CTX_SOURCE="$source"
   BP_HEADER_SOURCE="$source"
   emit_phase_start "Validating source repository"
-  if ! repo_resolve_root "$source" "$ROOT"; then
-    events_finish_op "failed"
-    render_summary_failure
-    history_append || true
-    session_mark_failed "$dest" || true
-    term_show_cursor
-    bp_clear_trap
-    exit 1
+  if repo_is_fetchable "$source"; then
+    # Legacy: whole-repo git URL cache (pre-assets split). Prefer assets when possible.
+    if ! repo_resolve_root "$source" "$ROOT"; then
+      events_finish_op "failed"
+      render_summary_failure
+      history_append || true
+      session_mark_failed "$dest" || true
+      term_show_cursor
+      bp_clear_trap
+      exit 1
+    fi
+    refresh_package_paths
+  else
+    bp_require_assets
   fi
-  refresh_package_paths
   emit_phase_complete "Validating source repository"
 }
 
@@ -273,12 +340,27 @@ need_file() {
 }
 
 package_version() {
-  # Single source of truth: package-root ./VERSION (not manifest.yaml).
-  if [[ -f "$VERSION_FILE" ]]; then
+  # CLI semver: always from the executable package ROOT/VERSION (not asset pack).
+  if [[ -f "${ROOT}/VERSION" ]]; then
+    tr -d '[:space:]' < "${ROOT}/VERSION"
+  elif [[ -f "$VERSION_FILE" ]]; then
     tr -d '[:space:]' < "$VERSION_FILE"
   else
     echo "0.0.0"
   fi
+}
+
+assets_core_version() {
+  local core
+  if core="$(assets_resolve_pack core 2>/dev/null)"; then
+    local v
+    v="$(assets_pack_version_file "$core")"
+    if [[ -n "$v" ]]; then
+      printf '%s' "$v"
+      return 0
+    fi
+  fi
+  package_version
 }
 
 # Normalize version for comparison (strip leading v / whitespace).
@@ -329,7 +411,7 @@ apply_managed_runtime_projections() {
   local mode="${4:-managed}"
   local rt
   install_compat_docs "$dest_root"
-  install_gitignore "$dest_root"
+  install_gitignore "$dest_root" "$runtimes"
 
   # Always drop obsolete renamed skill/rule paths before projecting current names.
   apply_harness_renames "$dest_root" "$runtimes"
@@ -479,6 +561,86 @@ EOF
     esac
   done
   emit_info "selected runtime: $RUNTIME"
+  return 0
+}
+
+# rebase = ignore entire runtime dirs; merge = ignore only blueprint-projected files.
+select_skill_mode() {
+  if [[ "$SKILL_MODE_SET" -eq 1 ]]; then
+    case "$SKILL_MODE" in
+      rebase|merge) return 0 ;;
+      *) die "--skill-mode requires rebase or merge" ;;
+    esac
+  fi
+
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    return 0
+  fi
+
+  cat <<'EOF'
+
+Select how blueprint skills land in the target project.
+
+  1) rebase   Ignore entire .cursor/ .claude/ .agents/ (runtimes stay fully managed)
+  2) merge    Ignore only blueprint skills/commands/rules/templates; local runtime files stay commitable
+
+  Esc) back
+
+EOF
+  local choice=""
+  while true; do
+    if ! term_prompt_read 'Skill mode [1-2] (Esc back): '; then
+      return 1
+    fi
+    choice="${BP_READ_RESULT:-}"
+    case "$choice" in
+      1|rebase|r) SKILL_MODE="rebase"; break ;;
+      2|merge|m) SKILL_MODE="merge"; break ;;
+      *) warn "invalid choice: $choice (use 1-2, or Esc)" ;;
+    esac
+  done
+  emit_info "selected skill-mode: $SKILL_MODE"
+  return 0
+}
+
+# Resolve skill_mode from --skill-mode, interactive prompt, consumer state, or default rebase.
+# prompt=1 lets interactive install ask; prompt=0 is for sync/update.
+resolve_skill_mode() {
+  local dest_root="${1:-}"
+  local prompt="${2:-0}"
+
+  if [[ "$SKILL_MODE_SET" -eq 1 ]]; then
+    case "$SKILL_MODE" in
+      rebase|merge)
+        emit_info "skill-mode: $SKILL_MODE"
+        return 0
+        ;;
+      *) die "--skill-mode requires rebase or merge" ;;
+    esac
+  fi
+
+  if [[ "$prompt" -eq 1 && -t 0 && -t 1 ]]; then
+    if select_skill_mode; then
+      SKILL_MODE_SET=1
+      return 0
+    fi
+    return 1
+  fi
+
+  if [[ -n "$dest_root" && -f "${dest_root}/${STATE_FILE}" ]]; then
+    local sm
+    sm="$(read_state_field "${dest_root}/${STATE_FILE}" skill_mode "")"
+    case "$sm" in
+      rebase|merge)
+        SKILL_MODE="$sm"
+        emit_info "skill-mode from state: $SKILL_MODE"
+        return 0
+        ;;
+    esac
+  fi
+
+  SKILL_MODE="rebase"
+  emit_info "skill-mode: $SKILL_MODE"
   return 0
 }
 
@@ -750,22 +912,101 @@ install_compat_docs() {
   done
 }
 
+# Blueprint-projected ignore paths for one runtime (merge skill-mode).
+gitignore_merge_entries_for_runtime() {
+  local runtime="$1"
+  local rt_root skill src_rule dest_name name
+  rt_root="$(runtime_root_name "$runtime")"
+
+  while IFS= read -r skill; do
+    [[ -z "$skill" ]] && continue
+    printf '%s/skills/%s/*\n' "$rt_root" "$skill"
+  done < <(package_skill_names)
+
+  while IFS= read -r src_rule; do
+    [[ -z "$src_rule" ]] && continue
+    if runtime_projects_md_rules "$runtime"; then
+      dest_name="${src_rule%.mdc}.md"
+    else
+      dest_name="$src_rule"
+    fi
+    printf '%s/rules/%s\n' "$rt_root" "$dest_name"
+  done < <(package_rule_names)
+
+  for name in start.md review.md commit.md; do
+    printf '%s/commands/%s\n' "$rt_root" "$name"
+  done
+  if [[ "${OVERLAY:-}" == "gitlab" ]]; then
+    for name in prerequisite.md pr.md fix-comment.md sync-dev.md; do
+      printf '%s/commands/%s\n' "$rt_root" "$name"
+    done
+  fi
+
+  printf '%s/templates/review-checklist.md\n' "$rt_root"
+  printf '%s/templates/adr.md\n' "$rt_root"
+  if [[ "${BLUEPRINT:-}" == "startup" ]]; then
+    printf '%s/templates/prd.md\n' "$rt_root"
+  fi
+}
+
+# Runtime ignore lines for the managed .gitignore section.
+# rebase (default): entire .cursor/ .claude/ .agents/
+# merge: only skills/commands/rules/templates projected from this blueprint
+gitignore_runtime_ignore_lines() {
+  local runtimes="${1:-}"
+  local mode="${SKILL_MODE:-rebase}"
+  if [[ "$mode" == "merge" && -n "${runtimes// }" ]]; then
+    local rt
+    for rt in $runtimes; do
+      gitignore_merge_entries_for_runtime "$rt"
+    done
+    return 0
+  fi
+  printf '%s\n' ".cursor/" ".claude/" ".agents/"
+}
+
+# Render templates/gitignore with {{RUNTIME_IGNORES}} expanded.
+gitignore_managed_block() {
+  local runtimes="${1:-}"
+  local src="${PACKAGE_ROOT}/templates/gitignore"
+  local mode="${SKILL_MODE:-rebase}"
+  local placeholder="# {{RUNTIME_IGNORES}}"
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "$placeholder" ]]; then
+      if [[ "$mode" == "merge" && -n "${runtimes// }" ]]; then
+        printf '%s\n' "# skill_mode: merge — ignore blueprint-projected skills/commands/rules/templates; local runtime files stay commitable."
+      else
+        printf '%s\n' "# skill_mode: rebase — ignore entire tool runtimes (.cursor / .claude / .agents)."
+      fi
+      gitignore_runtime_ignore_lines "$runtimes"
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$src"
+}
+
 install_gitignore() {
   local dest_root="$1"
-  local src="${PACKAGE_ROOT}/templates/gitignore"
+  local runtimes="${2:-}"
   local dest="${dest_root}/.gitignore"
   local begin="# --- shared-agent-blueprints (managed) ---"
   local end="# --- end shared-agent-blueprints ---"
+  local src
 
-  need_file "$src"
+  need_file "${PACKAGE_ROOT}/templates/gitignore"
+
+  src="$(mktemp)"
+  gitignore_managed_block "$runtimes" > "$src"
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
+    rm -f "$src"
     if [[ -f "$dest" ]] && grep -qF "$begin" "$dest" 2>/dev/null; then
-      emit_info "dry-run: would refresh managed .gitignore section in $dest"
+      emit_info "dry-run: would refresh managed .gitignore section in $dest (skill-mode=${SKILL_MODE:-rebase})"
     elif [[ -f "$dest" ]]; then
-      emit_info "dry-run: would append managed .gitignore section to $dest"
+      emit_info "dry-run: would append managed .gitignore section to $dest (skill-mode=${SKILL_MODE:-rebase})"
     else
-      emit_info "dry-run: would create $dest from templates/gitignore"
+      emit_info "dry-run: would create $dest from templates/gitignore (skill-mode=${SKILL_MODE:-rebase})"
     fi
     return 0
   fi
@@ -784,6 +1025,7 @@ install_gitignore() {
       { print }
     ' "$dest" > "$tmp"
     mv "$tmp" "$dest"
+    rm -f "$src"
     emit_file_updated "$dest"
     return 0
   fi
@@ -796,6 +1038,7 @@ install_gitignore() {
     cp "$src" "$dest"
     emit_file_added "$dest"
   fi
+  rm -f "$src"
 }
 
 # Strip the managed .gitignore block; leave all other ignore rules intact.
@@ -849,6 +1092,107 @@ del_remove_path() {
     /bin/rm -f "$path"
   fi
   emit_file_removed "$path"
+}
+
+del_remove_managed_file() {
+  local path="$1"
+  local bak
+  del_remove_path "$path"
+  if [[ -e "${path}.blueprint-conflict" ]]; then
+    del_remove_path "${path}.blueprint-conflict"
+  fi
+  for bak in "${path}".blueprint-backup.*; do
+    if [[ -e "$bak" ]]; then
+      del_remove_path "$bak"
+    fi
+  done
+}
+
+del_prune_empty_dir() {
+  local path="$1"
+  local leftover
+  if [[ ! -d "$path" ]]; then
+    return 0
+  fi
+  leftover="$(find "$path" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 || true)"
+  if [[ -z "$leftover" ]]; then
+    del_remove_path "$path"
+  fi
+}
+
+# Current package skill names plus historical rename sources (still blueprint-owned).
+blueprint_skill_names_for_del() {
+  local log line kind old
+  package_skill_names
+  log="$(renames_log_path)"
+  if [[ ! -f "$log" ]]; then
+    return 0
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%#*}"
+    line="$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [[ -z "$line" ]] && continue
+    # shellcheck disable=SC2086
+    set -- $line
+    kind="${1:-}"
+    old="${2:-}"
+    if [[ "$kind" == "skill" && -n "$old" ]]; then
+      printf '%s\n' "$old"
+    fi
+  done < "$log"
+}
+
+# Strip blueprint-projected skills/commands/rules/templates. Custom user files stay.
+# Empty runtime dirs are pruned; a runtime root with leftover custom skills is kept.
+del_remove_blueprint_runtime_projections() {
+  local dest_root="$1"
+  local rt rt_root skill rel log line kind old base
+
+  for rt in cursor claude codex; do
+    rt_root="$(runtime_root_name "$rt")"
+    if [[ ! -d "${dest_root}/${rt_root}" ]]; then
+      continue
+    fi
+
+    while IFS= read -r skill; do
+      [[ -z "$skill" ]] && continue
+      del_remove_path "${dest_root}/${rt_root}/skills/${skill}"
+    done < <(blueprint_skill_names_for_del)
+
+    log="$(renames_log_path)"
+    if [[ -f "$log" ]]; then
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        line="$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        [[ -z "$line" ]] && continue
+        # shellcheck disable=SC2086
+        set -- $line
+        kind="${1:-}"
+        old="${2:-}"
+        if [[ "$kind" == "rule" && -n "$old" ]]; then
+          del_remove_managed_file "${dest_root}/${rt_root}/rules/${old}"
+          base="${old%.mdc}"
+          del_remove_managed_file "${dest_root}/${rt_root}/rules/${base}.md"
+        fi
+      done < "$log"
+    fi
+
+    while IFS= read -r rel; do
+      [[ -z "$rel" ]] && continue
+      case "$rel" in
+        */skills/*)
+          continue
+          ;;
+      esac
+      del_remove_managed_file "${dest_root}/${rel}"
+    done < <(gitignore_merge_entries_for_runtime "$rt")
+
+    del_prune_empty_dir "${dest_root}/${rt_root}/skills"
+    del_prune_empty_dir "${dest_root}/${rt_root}/commands"
+    del_prune_empty_dir "${dest_root}/${rt_root}/rules"
+    del_prune_empty_dir "${dest_root}/${rt_root}/templates"
+    del_prune_empty_dir "${dest_root}/${rt_root}"
+  done
 }
 
 install_gitlab_overlay_into() {
@@ -975,6 +1319,8 @@ write_state() {
   local runtimes_csv="$3"
   local ver
   ver="$(package_version)"
+  local assets_ver
+  assets_ver="$(assets_core_version)"
   local src_ref
   # Prefer URL-shaped context source when present; else portable package ref.
   if repo_is_fetchable "${BP_CTX_SOURCE:-}"; then
@@ -984,7 +1330,7 @@ write_state() {
   fi
   local out="${dest_root}/${STATE_FILE}"
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    emit_info "dry-run state: $out (source=$src_ref blueprint=$bp version=$ver runtimes=$runtimes_csv)"
+    emit_info "dry-run state: $out (source=$src_ref blueprint=$bp version=$ver assets.core=$assets_ver runtimes=$runtimes_csv)"
     return 0
   fi
   local rt_yaml=""
@@ -1020,8 +1366,11 @@ version: ${ver}
 blueprint: ${bp}
 overlay: ${OVERLAY:-null}
 runtimes:${rt_yaml}
+skill_mode: ${SKILL_MODE:-rebase}
 installed_at_utc: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 conflict_policy: preserve-local
+assets:
+  core: ${assets_ver}
 harness:
   entrypoint: HARNESS.md
   managed: true
@@ -1042,9 +1391,15 @@ read_state_field() {
   local field="$2"
   local default="${3:-}"
   if [[ -f "$state" ]]; then
-    grep -E "^${field}:" "$state" | head -1 | awk '{print $2}'
+    local val=""
+    val="$(grep -E "^${field}:" "$state" 2>/dev/null | head -1 | awk '{print $2}' || true)"
+    if [[ -n "$val" ]]; then
+      printf '%s\n' "$val"
+    else
+      printf '%s\n' "$default"
+    fi
   else
-    echo "$default"
+    printf '%s\n' "$default"
   fi
 }
 
@@ -1090,12 +1445,22 @@ cmd_init() {
   mkdir -p "$dest_root"
   emit_phase_complete "Detecting project"
 
-  # Init always uses the local package that ships the CLI.
-  PACKAGE_ROOT="$ROOT"
-  refresh_package_paths
+  # Init prefers core assets; falls back to builtin/ for offline bootstrap.
+  if bp_bind_assets_package_root; then
+    :
+  elif [[ -d "${ROOT}/builtin/templates/entrypoints" ]]; then
+    PACKAGE_ROOT="${ROOT}/builtin"
+    refresh_package_paths
+    # Builtin may lack manifest — skip need_file MANIFEST below when using builtin-only.
+  else
+    PACKAGE_ROOT="$ROOT"
+    refresh_package_paths
+  fi
 
   emit_phase_start "Loading configuration"
-  need_file "$MANIFEST"
+  if [[ -f "$MANIFEST" ]]; then
+    need_file "$MANIFEST"
+  fi
   need_file "${PACKAGE_ROOT}/templates/entrypoints/HARNESS.md"
   need_file "${PACKAGE_ROOT}/templates/gitignore"
   emit_phase_complete "Loading configuration"
@@ -1159,7 +1524,8 @@ cmd_init() {
   fi
 
   install_memory_templates_if_absent "$dest_root"
-  install_gitignore "$dest_root"
+  SKILL_MODE="${SKILL_MODE:-rebase}"
+  install_gitignore "$dest_root" ""
   if [[ ! -f "${dest_root}/${STATE_FILE}" ]]; then
     write_state "$dest_root" "default" ""
   else
@@ -1238,6 +1604,7 @@ cmd_install() {
   emit_phase_complete "Loading configuration"
 
   select_runtime || die "cancelled (no runtime selected)"
+  resolve_skill_mode "$dest_root" 1 || die "cancelled (no skill-mode selected)"
 
   local runtimes
   runtimes="$(normalize_runtimes "$RUNTIME")"
@@ -1246,11 +1613,11 @@ cmd_install() {
   session_update_phase "$dest_root" "Copying files"
 
   emit_phase_start "Copying files"
-  emit_info "installing blueprint: $BLUEPRINT -> $dest_root (runtimes: $runtimes)"
+  emit_info "installing blueprint: $BLUEPRINT -> $dest_root (runtimes: $runtimes skill-mode: $SKILL_MODE)"
   progress_bar_begin "$(estimate_managed_copy_total "$runtimes")"
   install_compat_docs "$dest_root"
   install_memory_templates_if_absent "$dest_root"
-  install_gitignore "$dest_root"
+  install_gitignore "$dest_root" "$runtimes"
 
   local rt
   for rt in $runtimes; do
@@ -1291,10 +1658,9 @@ cmd_update() {
   local current="unknown"
   local latest
   local current_n latest_n
-  PACKAGE_ROOT="$ROOT"
-  refresh_package_paths
+  bp_require_assets
   need_file "${PACKAGE_ROOT}/templates/entrypoints/HARNESS.md"
-  need_file "$VERSION_FILE"
+  need_file "${ROOT}/VERSION"
   latest="$(package_version)"
   latest_n="$(normalize_version "$latest")"
   if [[ -f "$state" ]]; then
@@ -1305,6 +1671,7 @@ cmd_update() {
   emit_phase_start "Checking versions"
   emit_info "target version:  v${current_n:-unknown}"
   emit_info "package version: v${latest_n}"
+  emit_info "assets core:     v$(assets_core_version)"
   if [[ "$current" == "unknown" || -z "$current_n" ]]; then
     emit_warning "No installed version in ${STATE_FILE} — will stamp package version after update"
   elif versions_equal "$current" "$latest"; then
@@ -1356,8 +1723,7 @@ cmd_update() {
   if [[ -f "$state" ]]; then
     bp_resolve_source_for_op
   else
-    PACKAGE_ROOT="$ROOT"
-    refresh_package_paths
+    bp_require_assets
   fi
 
   local bp="default"
@@ -1371,6 +1737,7 @@ cmd_update() {
       OVERLAY="$ov"
     fi
     runtimes="$(read_state_runtimes "$state")"
+    resolve_skill_mode "$dest_root" 0
   fi
   BLUEPRINT="$bp"
 
@@ -1469,7 +1836,8 @@ cmd_sync() {
     exit 1
   fi
   BLUEPRINT="$bp"
-  emit_info "syncing blueprint: $BLUEPRINT runtime=$RUNTIME (preserve-local)"
+  resolve_skill_mode "$dest_root" 0
+  emit_info "syncing blueprint: $BLUEPRINT runtime=$RUNTIME skill-mode=$SKILL_MODE (preserve-local)"
 
   # Re-enter install body without nested bp_begin.
   bp_resolve_source_for_op
@@ -1627,8 +1995,8 @@ cmd_del() {
 
   emit_phase_start "Confirm removal"
   emit_info "target: $dest_root"
-  emit_info "will remove: HARNESS.md (if managed), memory files (PLANNING/DECISIONS/RUN_LOG/HOTCACHE/LEARNING/ANTI-PATTERNS), .cursor/, .claude/, .agents/, .agent-blueprint.yaml, .agent-blueprint/, managed .gitignore section, harness reference block"
-  emit_info "will preserve: AGENTS.md / agents.md / CLAUDE.md body, local overrides"
+  emit_info "will remove: HARNESS.md (if managed), memory files (PLANNING/DECISIONS/RUN_LOG/HOTCACHE/LEARNING/ANTI-PATTERNS), blueprint-projected skills/commands/rules/templates under .cursor/ .claude/ .agents/, .agent-blueprint.yaml, .agent-blueprint/, managed .gitignore section, harness reference block"
+  emit_info "will preserve: AGENTS.md / agents.md / CLAUDE.md body, local overrides, custom skills and other non-blueprint runtime files"
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
     emit_info "dry-run: skipping confirmation"
@@ -1647,7 +2015,7 @@ cmd_del() {
       return 0
     fi
   elif [[ "$FORCE" -ne 1 ]]; then
-    emit_error "del requires confirmation; re-run with --force for non-interactive removal"
+    emit_error "rm/del requires confirmation; re-run with --force for non-interactive removal"
     emit_phase_complete "Confirm removal"
     bp_end_failure
     exit 1
@@ -1698,10 +2066,17 @@ cmd_del() {
     del_remove_path "${dest_root}/${mf}"
   done
 
-  # Runtime projections (fully managed / typically gitignored).
-  del_remove_path "${dest_root}/.cursor"
-  del_remove_path "${dest_root}/.claude"
-  del_remove_path "${dest_root}/.agents"
+  # Runtime projections: blueprint skills/commands/rules/templates only.
+  # Custom user skills and other non-blueprint files under .cursor/.claude/.agents stay.
+  if [[ -f "$state" ]]; then
+    local ov_del
+    BLUEPRINT="$(read_state_field "$state" blueprint "${BLUEPRINT:-default}")"
+    ov_del="$(read_state_field "$state" overlay "")"
+    if [[ -n "$ov_del" && "$ov_del" != "null" ]]; then
+      OVERLAY="$ov_del"
+    fi
+  fi
+  del_remove_blueprint_runtime_projections "$dest_root"
 
   # Install state + session resume dir.
   del_remove_path "${dest_root}/${STATE_FILE}"
@@ -1713,7 +2088,7 @@ cmd_del() {
   fi
 
   emit_phase_complete "Removing blueprint"
-  emit_info "blueprint removed from target (agent instruction bodies and local overrides preserved)"
+  emit_info "blueprint removed from target (agent instruction bodies, local overrides, and custom skills preserved)"
   bp_end_success
 }
 
@@ -1731,12 +2106,11 @@ cmd_doctor() {
 
   PACKAGE_ROOT="$ROOT"
   refresh_package_paths
-  need_file "$MANIFEST"
-  need_file "$VERSION_FILE"
+  need_file "${ROOT}/VERSION"
 
   ui_header "Doctor"
-  ui_kv "package" "$(package_version)"
-  ui_kv "manifest" "$MANIFEST"
+  ui_kv "cli" "$(package_version)"
+  ui_kv "config" "$(bp_config_dir)"
   if [[ "$package_mode" -eq 1 ]]; then
     ui_kv "mode" "package-source"
   else
@@ -1744,14 +2118,20 @@ cmd_doctor() {
   fi
   ui_kv "target" "$abs_dest"
 
-  ui_section "Package"
+  ui_section "CLI"
   if [[ -f "${ROOT}/VERSION" ]]; then
     ui_ok "VERSION ($(package_version))"
   else
-    ui_fail "missing VERSION (single source of package semver)"
+    ui_fail "missing VERSION (CLI semver)"
     errors=$((errors + 1))
   fi
-  for d in blueprints/default harness/commands harness/rules harness/skills harness/migrations templates/memory templates/entrypoints prompts/system contributor/commands contributor/rules; do
+  if [[ -d "${ROOT}/builtin/templates/entrypoints" ]]; then
+    ui_ok "builtin/ bootstrap"
+  else
+    ui_fail "missing builtin/templates/entrypoints"
+    errors=$((errors + 1))
+  fi
+  for d in lib/blueprint contributor/commands contributor/rules; do
     if [[ ! -e "${ROOT}/$d" ]]; then
       ui_fail "missing $d"
       errors=$((errors + 1))
@@ -1759,8 +2139,42 @@ cmd_doctor() {
       ui_ok "$d"
     fi
   done
-  if [[ -f "${ROOT}/harness/migrations/renames.log" ]]; then
+
+  ui_section "Assets"
+  if bp_bind_assets_package_root; then
+    ui_ok "PACKAGE_ROOT → $PACKAGE_ROOT"
+    ui_kv "assets.core" "$(assets_core_version)"
+    for d in harness/commands harness/rules harness/skills harness/migrations templates/memory templates/entrypoints blueprints/default; do
+      if [[ ! -e "${PACKAGE_ROOT}/$d" ]]; then
+        ui_fail "missing $d (in assets)"
+        errors=$((errors + 1))
+      else
+        ui_ok "$d"
+      fi
+    done
+  else
+    ui_fail "core assets not resolved — run: blueprint assets install core"
+    errors=$((errors + 1))
+  fi
+
+  # Legacy co-located tree (transition): warn only if present without assets repo.
+  if [[ -d "${ROOT}/harness" ]]; then
+    ui_info "legacy harness/ still present in CLI repo (transition; prefer assets-blueprint)"
+  fi
+
+  ui_section "Package checks (compat)"
+  if [[ -f "${ROOT}/manifest.yaml" ]]; then
+    ui_ok "legacy manifest.yaml"
+  fi
+  for d in prompts/system; do
+    if [[ -e "${ROOT}/$d" ]]; then
+      ui_info "legacy $d still in CLI repo"
+    fi
+  done
+  if [[ -n "${PACKAGE_ROOT:-}" && -f "${PACKAGE_ROOT}/harness/migrations/renames.log" ]]; then
     ui_ok "harness/migrations/renames.log"
+  elif [[ -f "${ROOT}/harness/migrations/renames.log" ]]; then
+    ui_ok "harness/migrations/renames.log (legacy CLI tree)"
   else
     ui_fail "missing harness/migrations/renames.log (skill/rule rename rebuild log)"
     errors=$((errors + 1))
@@ -1775,6 +2189,12 @@ cmd_doctor() {
     ui_ok "lib/blueprint (UX modules)"
   else
     ui_fail "missing lib/blueprint"
+    errors=$((errors + 1))
+  fi
+  if [[ -f "${ROOT}/lib/blueprint/assets.sh" ]]; then
+    ui_ok "lib/blueprint/assets.sh"
+  else
+    ui_fail "missing lib/blueprint/assets.sh"
     errors=$((errors + 1))
   fi
 
@@ -1913,6 +2333,12 @@ cmd_doctor() {
           ui_fail "no declared tool runtime directory found"
           errors=$((errors + 1))
         fi
+        local sm
+        sm="$(read_state_field "$state" skill_mode rebase)"
+        case "$sm" in
+          merge) ui_ok "skill_mode merge  (gitignore lists blueprint skills/commands/rules/templates)" ;;
+          *) ui_ok "skill_mode rebase  (gitignore ignores .cursor/ .claude/ .agents/)" ;;
+        esac
       fi
 
       ui_section "Conflicts"
@@ -1987,9 +2413,12 @@ Commands:
   install-contributor  Project package-only contributor harness into this package root
   update               Version check, then refresh HARNESS.md + managed runtimes (preserves agent files)
   sync                 Re-apply installed blueprint with preserve-local
+  assets <cmd>         Manage asset packs (list|install|update|doctor)
   clean                Delete reviewed *.blueprint-backup.* leftovers on --target
-  del                  Remove blueprint from --target (keyword only in menu; no number)
-  doctor               Validate package + target install health
+  rm | del             Remove blueprint from --target (keyword only in menu; no number)
+                       (keeps custom skills; removes blueprint-projected runtime files)
+  doctor               Validate CLI + assets + target install health
+  --version            Print CLI version
 
 Blueprints:
   default | engineering | startup
@@ -1998,16 +2427,24 @@ Flags:
   --overlay gitlab     Install GitLab/glab command overlay
   --runtime NAME       cursor | claude | codex | all
                        (omit to get an interactive selector; tools optional)
+  --skill-mode MODE    rebase | merge  (install/sync/update; default rebase)
+                       rebase: gitignore entire .cursor/ .claude/ .agents/
+                       merge:  gitignore only blueprint skills/commands/rules/templates
   --target PATH        Consumer project root (any local path; not this package)
                        (install-contributor: must be this package root)
   --dry-run            Print actions without writing
-  --force              Overwrite unmanaged conflicting runtime files; also required for non-interactive del/clean
+  --force              Overwrite unmanaged conflicting runtime files; also required for non-interactive rm/del/clean
+  --offline            Prefer local assets only (with: assets doctor)
 
 Examples:
+  ./blueprint assets install core
+  ./blueprint assets list
   ./blueprint update --force --target ~/Developer/my-app
   ./blueprint sync --force --target ~/Developer/my-app
   ./blueprint clean --force --target ~/Developer/my-app
+  ./blueprint install default --runtime cursor --skill-mode merge --target ~/Developer/my-app
   ./blueprint install engineering --overlay gitlab --runtime all --force --target ~/Developer/my-app
+  ./blueprint rm --force --target ~/Developer/my-app
   ./blueprint del --force --target ~/Developer/my-app
 
   Interactive menu (./blueprint): choose 4) update — if conflicts appear, answer y
@@ -2020,8 +2457,9 @@ Install on PATH (optional):
   ln -s /path/to/agent-harness-blueprint/blueprint /usr/local/bin/blueprint
 
 Remote source:
-  When .agent-blueprint.yaml source is a git URL, install/sync clone or update
-  a cache under $XDG_CACHE_HOME/blueprint/repos/ then copy from that cache.
+  Prefer independently versioned packs via `blueprint assets install`.
+  Legacy: when .agent-blueprint.yaml source is a git URL, install/sync may still
+  clone under $XDG_CACHE_HOME/blueprint/repos/ then copy from that cache.
 
 Package contributors:
   ./blueprint install-contributor --runtime all
@@ -2435,7 +2873,13 @@ menu_install_wizard() {
       while true; do
         select_runtime || break
         RUNTIME_SET=1
-        return 0
+        SKILL_MODE_SET=0
+        SKILL_MODE="rebase"
+        while true; do
+          select_skill_mode || break
+          SKILL_MODE_SET=1
+          return 0
+        done
       done
     done
   done
@@ -2507,7 +2951,7 @@ cmd_menu() {
         printf '\n  %sPress Enter (or Esc) to return to menu…%s ' "$(term_color dim)" "$(term_color reset)"
         term_read_line || true
         ;;
-      del)
+      rm|del)
         # Keyword only — never bind a menu number to destructive removal.
         menu_run cmd_del
         ;;
@@ -2525,7 +2969,7 @@ cmd_menu() {
         # Empty Enter re-prompts; use q to quit.
         ;;
       *)
-        warn "invalid choice: $choice (use 1-6, h, q, del, clean, or Esc)"
+        warn "invalid choice: $choice (use 1-6, h, q, rm, del, clean, or Esc)"
         sleep 0.6 2>/dev/null || true
         ;;
     esac
@@ -2539,9 +2983,13 @@ case "$cmd" in
   install-contributor) cmd_install_contributor ;;
   update) cmd_update ;;
   sync) cmd_sync ;;
+  assets) cmd_assets "${ASSETS_ARGS[@]+"${ASSETS_ARGS[@]}"}" ;;
   clean) cmd_clean ;;
-  del) cmd_del ;;
+  del|rm) cmd_del ;;
   doctor) cmd_doctor ;;
+  --version|version)
+    printf 'blueprint %s\n' "$(package_version)"
+    ;;
   -h|--help|help) usage ;;
   "")
     if [[ -t 0 && -t 1 ]]; then

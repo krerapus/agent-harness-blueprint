@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Three-repo architecture: CLI (`agent-harness-blueprint`), assets (`assets-blueprint`), Homebrew tap (`homebrew-blueprint`) — see `docs/architecture-split.md`
+- `blueprint assets {list,install,update,doctor}` Asset Manager with XDG cache (`~/.cache/blueprint/assets/`) and sibling `assets-blueprint` discovery
+- `builtin/` offline bootstrap templates for Homebrew / airplane-mode `init`
+- XDG config defaults under `~/.config/blueprint/`; `targets.json` prefers `~/.local/share/blueprint/`
+- Consumer state pins `assets.core` alongside CLI `version`
+- GitHub Actions: `cli-release.yml` (multi-arch archives + formula bump PR)
+- `rm` is an alias for `del` (`./blueprint rm --force --target …`); interactive confirm accepts `rm` or `del`
+- `--skill-mode rebase|merge` on `install` / `sync` / `update` — `rebase` gitignores entire `.cursor/` / `.claude/` / `.agents/`; `merge` gitignores only blueprint-projected skills, commands, rules, and templates so local runtime files stay commitable. Interactive install prompts after runtime; state stores `skill_mode`.
 - `generate-test-cases` skill — Senior QA playbook that writes Testiny-importable CSV test suites for a software change (manual / opt-in); renamed from `testcase-generator` for action-first naming
 - Skill naming standard (`docs/standards/skill-naming.md`) enforced via skill-creator + contributor gate; `doctor` validates package skill names
 - `update-api-docs` skill — sync FastAPI `docs/api/openapi.yaml` and response examples with `app/routers/`
@@ -21,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `del` removes only blueprint-projected skills/commands/rules/templates under `.cursor/` / `.claude/` / `.agents/`; custom user skills and other local runtime files are kept, and empty runtime dirs are pruned
 - `--runtime codex` projects into `.agents/` (Codex reads skills from `.agents/skills/`); `--runtime all` includes Cursor, Claude, and Codex
 - `generate-test-cases` always writes CSV under `.testiny/` (gitignored); no Downloads prompt
 - `generate-test-cases` canonical Testiny header now matches the live import (`Section` instead of `Component`; fill-rule examples for `Active?`, `Priority`, `Sprint`)

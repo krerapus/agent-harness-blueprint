@@ -8,7 +8,7 @@ How `HARNESS.md` relates to root instruction files (`AGENTS.md` / `agents.md` / 
 |---|---|---|---|
 | `HARNESS.md` | Blueprint Service | Yes | Yes |
 | Managed runtime projections (`.cursor/` / `.claude/` / `.agents/`) | Blueprint Service | via `install` | Yes (when runtimes declared) |
-| Managed `.gitignore` section | Blueprint Service | Yes | Yes |
+| Managed `.gitignore` section | Blueprint Service | Yes | Yes (`rebase` ignores whole runtime dirs; `merge` lists projected skills/commands/rules/templates) |
 | `.agent-blueprint.yaml` version fields | Blueprint Service | Yes | Yes |
 | Managed block in selected instruction file | Blueprint Service | Yes | No |
 | Content outside managed markers | User | No | No |
@@ -68,7 +68,7 @@ If only `START` or only `END` is present (or duplicates), `init` leaves the inst
 2. Refresh managed blueprint context:
    - root `HARNESS.md`
    - managed runtime projections (`.cursor/` / `.claude/` / `.agents/` skills, commands, rules, templates) when runtimes are declared
-   - managed `.gitignore` section
+   - managed `.gitignore` section (`skill_mode` from state or `--skill-mode`)
    - stamp package version into state + targets registry
 
 ### Skill / rule renames

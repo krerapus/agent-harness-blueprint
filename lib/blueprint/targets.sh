@@ -6,7 +6,19 @@ targets_file() {
     printf '%s' "$BLUEPRINT_TARGETS_FILE"
     return 0
   fi
-  printf '%s/targets.json' "${ROOT:-.}"
+  # Prefer XDG data home (Homebrew-safe); fall back to legacy package-local file.
+  local xdg_file="${XDG_DATA_HOME:-$HOME/.local/share}/blueprint/targets.json"
+  if [[ -f "$xdg_file" ]]; then
+    printf '%s' "$xdg_file"
+    return 0
+  fi
+  local legacy="${ROOT:-.}/targets.json"
+  if [[ -f "$legacy" ]]; then
+    printf '%s' "$legacy"
+    return 0
+  fi
+  mkdir -p "$(dirname "$xdg_file")"
+  printf '%s' "$xdg_file"
 }
 
 targets_limit() {

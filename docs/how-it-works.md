@@ -61,6 +61,10 @@ flowchart TD
 
 Local overrides (`*.local.md`, `*.local.mdc`, `.agent-blueprint.local.yaml`) always win.
 
+`--skill-mode rebase` (default) gitignores entire `.cursor/` / `.claude/` / `.agents/`. `--skill-mode merge` gitignores only the skills, commands, rules, and templates this blueprint projected, so local files in those runtimes can be committed. `sync` / `update` reuse stored `skill_mode`.
+
+`del` removes blueprint-projected skills/commands/rules/templates only. Custom user skills and other non-blueprint files under `.cursor/` / `.claude/` / `.agents/` stay; empty runtime directories are pruned.
+
 On install/sync/update, unresolved conflicts emit a **project-level warning** (project name + count). In an interactive TTY, the CLI also offers to overwrite locals from the `*.blueprint-conflict` siblings. Non-interactive runs leave locals intact unless you pass `--force`. Known targets prefix the Name with compact status icons (`✓` current, `↓` outdated, `!` conflicts, `*` leftover backups — run `blueprint clean`), colored to match. `doctor` lists unresolved conflict siblings and backups as warnings.
 
 ## Update loop
