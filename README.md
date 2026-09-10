@@ -74,7 +74,17 @@ cd agent-harness-blueprint
 ln -sf "$(pwd)/blueprint" /usr/local/bin/blueprint
 ```
 
-There is a Homebrew tap in progress (`krerapus/homebrew-blueprint`). Until the first release artifacts ship, install from a git checkout (or submodule / vendored copy) and symlink the `blueprint` executable. Then:
+There is a Homebrew tap: `krerapus/homebrew-blueprint` (tap name `krerapus/blueprint`).
+
+```bash
+brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
+brew install blueprint
+blueprint assets install core
+```
+
+Release/distribution docs: [docs/release.md](docs/release.md), [docs/homebrew.md](docs/homebrew.md).
+
+Until a `v*` GitHub Release with archives exists, install from a git checkout and symlink the `blueprint` executable, then:
 
 ```bash
 blueprint assets install core

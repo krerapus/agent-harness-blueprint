@@ -49,10 +49,9 @@ blueprint assets doctor --offline
 
 Dev: place `assets-blueprint` as a sibling of this repo, or set `BLUEPRINT_ASSETS_ROOT`.
 
-## Transition
+## 3. Homebrew Formula (libexec)
 
-Until the first assets GitHub Release and Go binary ship:
+Formula installs the **full** release tree under `libexec` and wraps `bin/blueprint`.
+Installing only the script into `bin/` breaks `source lib/blueprint/*.sh`.
 
-1. Sibling `../assets-blueprint/packs/core` is preferred.
-2. Legacy `harness/` / `templates/` in this repo remain as fallback.
-3. Homebrew Formula expects release tarballs named `blueprint_<ver>_<os>_<arch>.tar.gz`.
+See [homebrew.md](homebrew.md) and [release.md](release.md).

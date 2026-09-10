@@ -1,147 +1,239 @@
 name: CLI Release
 
+# Source of truth: this repository.
+# Tag vX.Y.Z → test → package → GitHub Release → optional Homebrew formula PR.
 on:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
 
 permissions:
   contents: write
 
-jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            goos: darwin
-            goarch: arm64
-          - os: macos-13
-            goos: darwin
-            goarch: amd64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-          - os: ubuntu-24.04-arm
-            goos: linux
-            goarch: arm64
+concurrency:
+  group: cli-release-${{ github.ref }}
+  cancel-in-progress: false
 
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Package portable CLI archive
-        id: pkg
+      - name: Validate tag matches VERSION
+        id: meta
         run: |
-          VER="${GITHUB_REF_NAME#v}"
-          STAGE="blueprint_${VER}_${{ matrix.goos }}_${{ matrix.goarch }}"
-          mkdir -p "dist/${STAGE}"
-          # Bash CLI distribution (transition). Replace with Go binary build when ready.
-          cp blueprint "dist/${STAGE}/blueprint"
-          chmod +x "dist/${STAGE}/blueprint"
-          cp -R builtin "dist/${STAGE}/builtin"
-          cp -R lib "dist/${STAGE}/lib"
-          cp VERSION LICENSE README.md "dist/${STAGE}/"
-          # Keep contributor tooling optional in archive
-          if [[ -d contributor ]]; then
-            cp -R contributor "dist/${STAGE}/contributor"
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.]+)?$ ]] \
+            || { echo "error: tag must match vMAJOR.MINOR.PATCH (got $TAG)" >&2; exit 1; }
+          VER="${TAG#v}"
+          FILE_VER="$(tr -d '[:space:]' < VERSION)"
+          if [[ "$FILE_VER" != "$VER" ]]; then
+            echo "error: VERSION file ($FILE_VER) does not match tag ($TAG)" >&2
+            exit 1
           fi
-          tar -C dist -czf "dist/${STAGE}.tar.gz" "${STAGE}"
-          if command -v shasum >/dev/null; then
-            (cd dist && shasum -a 256 "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256")
-          else
-            (cd dist && sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256")
-          fi
-          echo "asset=${STAGE}.tar.gz" >> "$GITHUB_OUTPUT"
           echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Validated release ${TAG} (VERSION=${FILE_VER})"
+
+      - name: Run smoke tests
+        run: |
+          chmod +x blueprint tests/cli/smoke.sh
+          ./tests/cli/smoke.sh
+
+  package:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package all platform archives
+        run: |
+          chmod +x scripts/package-release.sh scripts/verify-release-archive.sh
+          ./scripts/package-release.sh "${{ needs.validate.outputs.version }}"
+          ./scripts/verify-release-archive.sh --all dist
+
+      - name: Assert required artifacts
+        run: |
+          set -euo pipefail
+          VER="${{ needs.validate.outputs.version }}"
+          required=(
+            "blueprint_${VER}_darwin_arm64.tar.gz"
+            "blueprint_${VER}_darwin_amd64.tar.gz"
+            "blueprint_${VER}_linux_arm64.tar.gz"
+            "blueprint_${VER}_linux_amd64.tar.gz"
+            "checksums.txt"
+          )
+          for f in "${required[@]}"; do
+            test -f "dist/$f" || { echo "missing dist/$f" >&2; exit 1; }
+          done
+          if grep -q '0000000000000000000000000000000000000000000000000000000000000000' dist/checksums.txt; then
+            echo "placeholder checksum in checksums.txt" >&2
+            exit 1
+          fi
+          echo "All required artifacts present:"
+          cat dist/checksums.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.pkg.outputs.asset }}
-          path: |
-            dist/${{ steps.pkg.outputs.asset }}
-            dist/${{ steps.pkg.outputs.asset }}.sha256
+          name: blueprint-release-${{ needs.validate.outputs.version }}
+          path: dist/**
+          if-no-files-found: error
 
   release:
-    needs: build
+    needs: [validate, package]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
         with:
+          name: blueprint-release-${{ needs.validate.outputs.version }}
           path: dist
-          merge-multiple: true
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/**
-          generate_release_notes: true
+      - name: Re-verify artifacts before publish
+        run: |
+          chmod +x scripts/verify-release-archive.sh
+          ./scripts/verify-release-archive.sh --all dist
+
+      - name: Create or update GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          VER: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          assets=(
+            "dist/blueprint_${VER}_darwin_arm64.tar.gz"
+            "dist/blueprint_${VER}_darwin_amd64.tar.gz"
+            "dist/blueprint_${VER}_linux_arm64.tar.gz"
+            "dist/blueprint_${VER}_linux_amd64.tar.gz"
+            "dist/checksums.txt"
+          )
+          for a in "${assets[@]}"; do
+            test -f "$a" || { echo "missing $a" >&2; exit 1; }
+          done
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists — uploading/clobbering assets"
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          else
+            echo "Creating release $TAG"
+            gh release create "$TAG" "${assets[@]}" \
+              --title "Blueprint CLI ${VER}" \
+              --generate-notes \
+              --verify-tag
+          fi
+
+          # Fail if any expected asset is still missing on the release.
+          remote="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          for want in \
+            "blueprint_${VER}_darwin_arm64.tar.gz" \
+            "blueprint_${VER}_darwin_amd64.tar.gz" \
+            "blueprint_${VER}_linux_arm64.tar.gz" \
+            "blueprint_${VER}_linux_amd64.tar.gz" \
+            "checksums.txt"
+          do
+            echo "$remote" | grep -qx "$want" || { echo "release missing asset: $want" >&2; exit 1; }
+          done
+          echo "Release $TAG assets OK"
 
   bump-formula:
-    needs: release
+    needs: [validate, release]
     runs-on: ubuntu-latest
-    if: github.repository == 'krerapus/agent-harness-blueprint'
+    # Skip gracefully when tap token is not configured (forks / first setup).
+    if: ${{ github.repository == 'krerapus/agent-harness-blueprint' }}
     steps:
-      - name: Checkout homebrew tap
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: blueprint-release-${{ needs.validate.outputs.version }}
+          path: dist
+
+      - name: Check HOMEBREW_TAP_TOKEN
+        id: token
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::HOMEBREW_TAP_TOKEN not set — skipping formula bump. See docs/homebrew.md"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout Homebrew tap
+        if: steps.token.outputs.present == 'true'
         uses: actions/checkout@v4
         with:
           repository: krerapus/homebrew-blueprint
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-blueprint
 
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
       - name: Bump Formula urls and sha256
-        working-directory: homebrew-blueprint
+        if: steps.token.outputs.present == 'true'
         run: |
-          VER="${GITHUB_REF_NAME#v}"
-          FORMULA="Formula/blueprint.rb"
-          sed -i.bak "s/version \".*\"/version \"${VER}\"/" "$FORMULA"
+          chmod +x scripts/bump-homebrew-formula.sh
+          ./scripts/bump-homebrew-formula.sh \
+            "${{ needs.validate.outputs.version }}" \
+            dist \
+            homebrew-blueprint/Formula/blueprint.rb
+          if grep -q '0000000000000000000000000000000000000000000000000000000000000000' \
+            homebrew-blueprint/Formula/blueprint.rb; then
+            echo "formula still has placeholder sha256" >&2
+            exit 1
+          fi
+          # Sanity: every url must point at this tag.
+          grep -E 'releases/download/v'"${{ needs.validate.outputs.version }}" \
+            homebrew-blueprint/Formula/blueprint.rb | wc -l | grep -q '^[4-9]'
 
-          bump_arch() {
-            local goos="$1" goarch="$2"
-            local asset="blueprint_${VER}_${goos}_${goarch}.tar.gz"
-            local sha
-            sha="$(tr -d '[:space:]' < "../dist/${asset}.sha256" | awk '{print $1}')"
-            # Replace sha256 that follows the matching url line (next sha256 after url containing asset).
-            python3 - "$FORMULA" "$asset" "$sha" <<'PY'
-          import re, sys
-          path, asset, sha = sys.argv[1:4]
-          text = open(path).read()
-          # Replace sha256 immediately after the url that mentions this asset.
-          pattern = rf'(url "[^"]*{re.escape(asset)}"[^\n]*\n\s*sha256 ")([0-9a-fA-F]{{64}})(")'
-          text2, n = re.subn(pattern, rf'\g<1>{sha}\3', text, count=1)
-          if n != 1:
-              raise SystemExit(f"failed to patch sha for {asset} (matches={n})")
-          open(path, "w").write(text2)
-          PY
-          }
-
-          bump_arch darwin arm64
-          bump_arch darwin amd64
-          bump_arch linux amd64
-          bump_arch linux arm64
-          rm -f "${FORMULA}.bak"
+      - name: Validate Formula syntax
+        if: steps.token.outputs.present == 'true'
+        run: ruby -c homebrew-blueprint/Formula/blueprint.rb
 
       - name: Open PR on tap
+        if: steps.token.outputs.present == 'true'
         working-directory: homebrew-blueprint
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VER: ${{ needs.validate.outputs.version }}
+          TAG: ${{ needs.validate.outputs.tag }}
         run: |
-          VER="${GITHUB_REF_NAME#v}"
+          set -euo pipefail
           BRANCH="bump-blueprint-${VER}"
           git config user.name "blueprint-release-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git checkout -b "$BRANCH"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout -B "$BRANCH"
           git add Formula/blueprint.rb
+          if git diff --staged --quiet; then
+            echo "No formula changes (already up to date)"
+            exit 0
+          fi
           git commit -m "chore: bump blueprint to ${VER}"
-          git push -u origin "$BRANCH"
-          gh pr create --title "chore: bump blueprint to ${VER}" --body "Automated formula bump from agent-harness-blueprint ${GITHUB_REF_NAME}."
+          git push -u origin "$BRANCH" --force
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            gh pr edit "$BRANCH" --title "chore: bump blueprint to ${VER}" \
+              --body "Automated formula bump from agent-harness-blueprint \`${TAG}\`."
+          else
+            gh pr create --title "chore: bump blueprint to ${VER}" \
+              --body "Automated formula bump from agent-harness-blueprint \`${TAG}\`.
+
+## Summary
+- version \`${VER}\`
+- URLs → \`.../releases/download/${TAG}/blueprint_${VER}_*.tar.gz\`
+- Real SHA256 from release \`checksums.txt\`
+
+## Test plan
+- [ ] \`brew uninstall blueprint\` (ignore errors)
+- [ ] \`brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint\`
+- [ ] \`brew install blueprint\`
+- [ ] \`blueprint --version\` → ${VER}
+- [ ] \`blueprint assets doctor --offline\`
+"
+          fi
