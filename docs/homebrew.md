@@ -18,7 +18,11 @@ Tap install:
 
 ```bash
 brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
+# Homebrew 6+: trust the formula once if prompted
+brew trust --formula krerapus/blueprint/blueprint
 brew install blueprint
+blueprint --version
+blueprint assets install core
 ```
 
 (`krerapus/blueprint` is the tap name; the GitHub repo is `homebrew-blueprint`.)

@@ -189,8 +189,9 @@ jobs:
             exit 1
           fi
           # Sanity: every url must point at this tag.
-          grep -E 'releases/download/v'"${{ needs.validate.outputs.version }}" \
-            homebrew-blueprint/Formula/blueprint.rb | wc -l | grep -q '^[4-9]'
+          VER="${{ needs.validate.outputs.version }}"
+          matches="$(grep -c "releases/download/v${VER}/" homebrew-blueprint/Formula/blueprint.rb || true)"
+          test "$matches" -ge 4
 
       - name: Validate Formula syntax
         if: steps.token.outputs.present == 'true'
@@ -217,23 +218,26 @@ jobs:
           fi
           git commit -m "chore: bump blueprint to ${VER}"
           git push -u origin "$BRANCH" --force
+          BODY_FILE="$(mktemp)"
+          cat > "$BODY_FILE" <<EOF
+          Automated formula bump from agent-harness-blueprint \`${TAG}\`.
+
+          ## Summary
+          - version \`${VER}\`
+          - URLs point at release \`${TAG}\`
+          - Real SHA256 from release checksums.txt
+
+          ## Test plan
+          - [ ] brew uninstall blueprint (ignore errors)
+          - [ ] brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
+          - [ ] brew install blueprint
+          - [ ] blueprint --version equals ${VER}
+          - [ ] blueprint assets doctor --offline
+          EOF
+          # Strip leading indentation from heredoc lines
+          sed -i.bak 's/^          //' "$BODY_FILE" && rm -f "${BODY_FILE}.bak"
           if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
-            gh pr edit "$BRANCH" --title "chore: bump blueprint to ${VER}" \
-              --body "Automated formula bump from agent-harness-blueprint \`${TAG}\`."
+            gh pr edit "$BRANCH" --title "chore: bump blueprint to ${VER}" --body-file "$BODY_FILE"
           else
-            gh pr create --title "chore: bump blueprint to ${VER}" \
-              --body "Automated formula bump from agent-harness-blueprint \`${TAG}\`.
-
-## Summary
-- version \`${VER}\`
-- URLs → \`.../releases/download/${TAG}/blueprint_${VER}_*.tar.gz\`
-- Real SHA256 from release \`checksums.txt\`
-
-## Test plan
-- [ ] \`brew uninstall blueprint\` (ignore errors)
-- [ ] \`brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint\`
-- [ ] \`brew install blueprint\`
-- [ ] \`blueprint --version\` → ${VER}
-- [ ] \`blueprint assets doctor --offline\`
-"
+            gh pr create --title "chore: bump blueprint to ${VER}" --body-file "$BODY_FILE"
           fi
