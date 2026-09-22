@@ -1,15 +1,17 @@
 # Contributing
 
-Thanks for helping improve **shared-agent-blueprints**. This package is the source for a reusable multi-agent harness (CLI + `harness/` content). Contributions that keep the consumer contract clear and the CLI predictable are especially welcome.
+Thanks for helping improve **agent-harness-blueprint**. This package is the CLI + runtime for a reusable multi-agent harness. Contributions that keep the consumer contract clear and the CLI predictable are especially welcome.
 
 Please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+
+Sibling repos: [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) (packs) · [`homebrew-blueprint`](https://github.com/krerapus/homebrew-blueprint) (Formula).
 
 ## Development setup
 
 Requirements: Bash, Git, and a Unix-like shell (macOS / Linux).
 
 ```bash
-git clone https://github.com/Supparerk23/agent-harness-blueprint.git
+git clone https://github.com/krerapus/agent-harness-blueprint.git
 cd agent-harness-blueprint
 
 # Optional: put the CLI on PATH
@@ -19,13 +21,22 @@ ln -s "$(pwd)/blueprint" /usr/local/bin/blueprint
 ./blueprint doctor
 ```
 
+For local pack development, check out [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) as a sibling (or set `BLUEPRINT_ASSETS_ROOT`).
+
 Package orientation for agents and contributors:
 
 1. [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md)
-2. Relevant files under `harness/`, `blueprints/`, `templates/`
+2. Relevant files under `harness/`, `blueprints/`, `templates/`, `lib/blueprint/`
 3. [docs/](docs/) for adoption and compatibility notes
+4. [README.md](README.md#how-it-works) for ecosystem + projection diagrams
 
 Bump the package semver only in [`VERSION`](VERSION).
+
+## How this repo works
+
+This repository ships the `blueprint` CLI, builtin bootstrap, and (during transition) in-tree harness sources. It projects packs into consumer `.cursor/` / `.claude/` / `.agents/` trees. Pack versioning and Homebrew Formula updates live in the sibling repos.
+
+See the Mermaid diagrams in [README.md](README.md#how-it-works) and [docs/architecture-split.md](docs/architecture-split.md).
 
 ## Branch naming
 
@@ -55,7 +66,7 @@ Keep commits focused. Do not commit consumer artifacts (`.cursor/`, `.claude/`, 
 ## Pull request process
 
 1. Fork (or branch from the default branch) and make a focused change.
-2. Run the smoke and harness tests (see [Testing](#testing-requirements)).
+2. Run the smoke and harness tests (see [Testing](#testing--review-expectations)).
 3. Open a PR using the template. Describe **why** the change exists and how you verified it.
 4. Include short **Release notes** (1–3 Keep a Changelog bullets) suitable for `CHANGELOG.md` `[Unreleased]`.
 5. Link related issues when applicable.
@@ -65,6 +76,16 @@ Keep commits focused. Do not commit consumer artifacts (`.cursor/`, `.claude/`, 
 Agent playbook: [contributor/commands/pr.md](contributor/commands/pr.md).
 
 Maintainers may ask for docs updates when CLI or projection behavior changes.
+
+## How to update source
+
+1. **CLI / modules:** edit `blueprint` and `lib/blueprint/`; keep helpers small and composable.
+2. **Consumer harness content:** prefer editing packs in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint); in-tree `harness/`, `templates/`, `blueprints/`, and `prompts/` remain during the assets transition.
+3. **Consumer contract:** change entrypoints under `templates/entrypoints/` (or the assets `core` pack equivalents).
+4. **Contributor-only playbooks:** edit `contributor/` (not projected by consumer `install`).
+5. **Semver:** bump only [`VERSION`](VERSION); update [CHANGELOG.md](CHANGELOG.md).
+6. **Verify:** `./tests/cli/smoke.sh`, `./tests/cli/harness.sh`, `./blueprint doctor`. For install/sync/init/del changes, use `--dry-run` then a throwaway `--target`.
+7. **Release:** follow [docs/release.md](docs/release.md). Formula bumps land on [`homebrew-blueprint`](https://github.com/krerapus/homebrew-blueprint) via [docs/homebrew.md](docs/homebrew.md).
 
 ## Contributor harness (local slash commands)
 
@@ -97,7 +118,7 @@ Before adding or substantially rewriting a consumer skill under `harness/skills/
 - **Consumer contract:** Entrypoints live in `templates/entrypoints/`. Do not treat package-root `AGENTS.md` as a product-app contract.
 - **Do not** commit live `.cursor/` / `.claude/` / `.agents/` trees or task-memory files into this package.
 
-## Testing requirements
+## Testing / review expectations
 
 Before requesting review:
 
@@ -109,7 +130,7 @@ Before requesting review:
 
 If you change install/sync/init/del behavior, exercise a temporary consumer target with `--dry-run` first, then a real throwaway directory.
 
-## Review expectations
+Review bar:
 
 - Clarity and safety over cleverness
 - No silent overwrites of consumer memory or agent instruction files

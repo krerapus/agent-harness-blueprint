@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Production CLI release pipeline: `scripts/package-release.sh`, `scripts/verify-release-archive.sh`, `scripts/bump-homebrew-formula.sh`, and rewritten `.github/workflows/cli-release.yml` (tag `v*.*.*` → test → package → GitHub Release → optional Homebrew PR)
+- Docs: `docs/release.md`, `docs/distribution.md`, `docs/homebrew.md`
+- Test: `tests/cli/package-release.sh` (artifact presence, checksum integrity, formula bump)
 - Three-repo architecture: CLI (`agent-harness-blueprint`), assets (`assets-blueprint`), Homebrew tap (`homebrew-blueprint`) — see `docs/architecture-split.md`
 - `blueprint assets {list,install,update,doctor}` Asset Manager with XDG cache (`~/.cache/blueprint/assets/`) and sibling `assets-blueprint` discovery
 - `builtin/` offline bootstrap templates for Homebrew / airplane-mode `init`

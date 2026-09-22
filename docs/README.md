@@ -1,6 +1,8 @@
 # Documentation index
 
-Narrative docs for this shared agent blueprint package. Start from the root [README](../README.md) for the categorized overview with diagrams.
+Narrative docs for this shared agent blueprint package. Start from the root [README](../README.md) for **How it works** (mermaid), **How to use**, and **How to update source**.
+
+Sibling repos: [assets-blueprint](https://github.com/krerapus/assets-blueprint) · [homebrew-blueprint](https://github.com/krerapus/homebrew-blueprint).
 
 ## By category
 
@@ -9,8 +11,17 @@ Narrative docs for this shared agent blueprint package. Start from the root [REA
 | Document | Contents |
 |---|---|
 | [architecture.md](architecture.md) | Package vs consumer, multi-runtime projection (mermaid) |
+| [architecture-split.md](architecture-split.md) | Three-repo split (CLI / assets / Homebrew) |
 | [compatibility.md](compatibility.md) | Package sources vs consumer-only artifacts |
 | [harness-ownership.md](harness-ownership.md) | `HARNESS.md` vs agent files; init/update ownership |
+
+### Release & distribution
+
+| Document | Contents |
+|---|---|
+| [release.md](release.md) | Tag → CI → GitHub Release → artifacts |
+| [distribution.md](distribution.md) | Channels, Homebrew layout, troubleshooting |
+| [homebrew.md](homebrew.md) | Tap relationship, formula bump, secrets |
 
 ### Setup
 
@@ -40,7 +51,7 @@ Narrative docs for this shared agent blueprint package. Start from the root [REA
 
 | Document | Contents |
 |---|---|
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | Dev setup, branches, PRs, testing |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Dev setup, how to update source, branches, PRs, testing |
 | [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) | Contributor Covenant 3.0 |
 | [SECURITY.md](../SECURITY.md) | Vulnerability reporting |
 | [CHANGELOG.md](../CHANGELOG.md) | Keep a Changelog release notes |
