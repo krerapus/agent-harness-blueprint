@@ -1,6 +1,8 @@
 # Documentation index
 
-Narrative docs for this shared agent blueprint package. Start from the root [README](../README.md) for the categorized overview with diagrams.
+Narrative docs for this shared agent blueprint package. Start from the root [README](../README.md) for **How it works** (mermaid), **How to use**, and **How to update source**.
+
+Sibling repos: [assets-blueprint](https://github.com/krerapus/assets-blueprint) · [homebrew-blueprint](https://github.com/krerapus/homebrew-blueprint).
 
 ## By category
 
@@ -49,7 +51,7 @@ Narrative docs for this shared agent blueprint package. Start from the root [REA
 
 | Document | Contents |
 |---|---|
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | Dev setup, branches, PRs, testing |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Dev setup, how to update source, branches, PRs, testing |
 | [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) | Contributor Covenant 3.0 |
 | [SECURITY.md](../SECURITY.md) | Vulnerability reporting |
 | [CHANGELOG.md](../CHANGELOG.md) | Keep a Changelog release notes |
