@@ -1,6 +1,8 @@
 # Skills
 
-Package sources live under [harness/skills/](../harness/skills/). After install, the same folders appear under the consumer's `.cursor/skills/`, `.claude/skills/`, and/or `.agents/skills/` as `SKILL.md` plus optional bundles (templates, scripts, references). They are **human-curated** procedures—load them when the task matches their scope.
+Canonical sources live in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) under `packs/core/harness/skills/`. Edit packs there; bump pack version + `catalog.yaml`. A legacy mirror may still exist at [harness/skills/](../harness/skills/) in this checkout (fallback only — see [architecture-split.md](architecture-split.md)).
+
+After `blueprint install`, the same folders appear under the consumer's `.cursor/skills/`, `.claude/skills/`, and/or `.agents/skills/` as `SKILL.md` plus optional bundles. They are **human-curated** procedures—load them when the task matches their scope.
 
 ## `task-execution`
 

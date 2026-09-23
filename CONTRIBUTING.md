@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve **agent-harness-blueprint**. This package is the CLI + runtime for a reusable multi-agent harness. Contributions that keep the consumer contract clear and the CLI predictable are especially welcome.
+Thanks for helping improve **agent-harness-blueprint**. This package is the **CLI + runtime**. Pack content and the Homebrew Formula live in sibling repos — see [docs/architecture-split.md](docs/architecture-split.md).
 
 Please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
@@ -17,26 +17,37 @@ cd agent-harness-blueprint
 # Optional: put the CLI on PATH
 ln -s "$(pwd)/blueprint" /usr/local/bin/blueprint
 
-# Sanity-check the package
+# Packs (required for realistic install/doctor against a clean tree)
+git clone https://github.com/krerapus/assets-blueprint.git ../assets-blueprint
+# or: export BLUEPRINT_ASSETS_ROOT=/path/to/assets-blueprint
+./blueprint assets install core
+
 ./blueprint doctor
 ```
 
-For local pack development, check out [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) as a sibling (or set `BLUEPRINT_ASSETS_ROOT`).
+Package orientation:
 
-Package orientation for agents and contributors:
+1. [docs/architecture-split.md](docs/architecture-split.md) — **which repo to edit**
+2. [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md)
+3. `blueprint`, `lib/blueprint/`, `builtin/`, `contributor/`
+4. [docs/](docs/) for adoption and release notes
+5. [README.md](README.md#where-content-lives)
 
-1. [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md)
-2. Relevant files under `harness/`, `blueprints/`, `templates/`, `lib/blueprint/`
-3. [docs/](docs/) for adoption and compatibility notes
-4. [README.md](README.md#how-it-works) for ecosystem + projection diagrams
+Bump the CLI semver only in [`VERSION`](VERSION).
 
-Bump the package semver only in [`VERSION`](VERSION).
+Full local/dev workflow (sibling packs, isolated XDG, throwaway consumers, test scripts): [docs/local-development.md](docs/local-development.md).
 
 ## How this repo works
 
-This repository ships the `blueprint` CLI, builtin bootstrap, and (during transition) in-tree harness sources. It projects packs into consumer `.cursor/` / `.claude/` / `.agents/` trees. Pack versioning and Homebrew Formula updates live in the sibling repos.
+This repository ships the `blueprint` CLI, builtin bootstrap, contributor tooling, and release packaging. It loads harness content from asset packs (or a legacy in-tree fallback), then projects into consumer `.cursor/` / `.claude/` / `.agents/` trees.
 
-See the Mermaid diagrams in [README.md](README.md#how-it-works) and [docs/architecture-split.md](docs/architecture-split.md).
+| Change type | Repo |
+|-------------|------|
+| CLI / assets manager / projection | **this repo** |
+| Skills, rules, commands, blueprints, templates, prompts, examples | **assets-blueprint** |
+| Homebrew Formula | **homebrew-blueprint** |
+
+See [README.md](README.md#how-it-works) and [docs/architecture-split.md](docs/architecture-split.md).
 
 ## Branch naming
 
@@ -70,7 +81,7 @@ Keep commits focused. Do not commit consumer artifacts (`.cursor/`, `.claude/`, 
 3. Open a PR using the template. Describe **why** the change exists and how you verified it.
 4. Include short **Release notes** (1–3 Keep a Changelog bullets) suitable for `CHANGELOG.md` `[Unreleased]`.
 5. Link related issues when applicable.
-6. Keep the PR scoped — large mixed refactors are harder to review and more likely to be deferred.
+6. Keep the PR scoped — pack content PRs belong in `assets-blueprint`; Formula-only PRs belong in `homebrew-blueprint`.
 7. Address review feedback with follow-up commits (prefer not to force-push unless asked).
 
 Agent playbook: [contributor/commands/pr.md](contributor/commands/pr.md).
@@ -80,11 +91,11 @@ Maintainers may ask for docs updates when CLI or projection behavior changes.
 ## How to update source
 
 1. **CLI / modules:** edit `blueprint` and `lib/blueprint/`; keep helpers small and composable.
-2. **Consumer harness content:** prefer editing packs in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint); in-tree `harness/`, `templates/`, `blueprints/`, and `prompts/` remain during the assets transition.
-3. **Consumer contract:** change entrypoints under `templates/entrypoints/` (or the assets `core` pack equivalents).
+2. **Consumer harness content:** edit packs in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint). Do not treat in-tree `harness/`, `templates/`, `blueprints/`, or `prompts/` as the source of truth (legacy fallback only).
+3. **Offline bootstrap:** change entrypoints/memory under `builtin/` when the change must ship inside the CLI archive without packs.
 4. **Contributor-only playbooks:** edit `contributor/` (not projected by consumer `install`).
-5. **Semver:** bump only [`VERSION`](VERSION); update [CHANGELOG.md](CHANGELOG.md).
-6. **Verify:** `./tests/cli/smoke.sh`, `./tests/cli/harness.sh`, `./blueprint doctor`. For install/sync/init/del changes, use `--dry-run` then a throwaway `--target`.
+5. **Semver:** bump only [`VERSION`](VERSION) for CLI releases; update [CHANGELOG.md](CHANGELOG.md). Pack versions bump in `assets-blueprint`.
+6. **Verify:** `./tests/cli/smoke.sh`, `./tests/cli/harness.sh`, `./blueprint doctor`, `./blueprint assets doctor --offline`. For install/sync/init/del changes, use `--dry-run` then a throwaway `--target`.
 7. **Release:** follow [docs/release.md](docs/release.md). Formula bumps land on [`homebrew-blueprint`](https://github.com/krerapus/homebrew-blueprint) via [docs/homebrew.md](docs/homebrew.md).
 
 ## Contributor harness (local slash commands)
@@ -106,16 +117,16 @@ This writes gitignored `.cursor/` / `.claude/` / `.agents/` plus `.agent-bluepri
 | Command | `/commit` | [`contributor/commands/commit.md`](contributor/commands/commit.md) |
 | Command | `/pr` | [`contributor/commands/pr.md`](contributor/commands/pr.md) |
 | Rule | contributor-standards | [`contributor/rules/contributor-standards.mdc`](contributor/rules/contributor-standards.mdc) |
-| Skill | `skill-creator` | [`harness/skills/skill-creator/SKILL.md`](harness/skills/skill-creator/SKILL.md) |
+| Skill | `skill-creator` | Prefer assets `packs/core/harness/skills/skill-creator/` (legacy: [`harness/skills/skill-creator/SKILL.md`](harness/skills/skill-creator/SKILL.md)) |
 
-Before adding or substantially rewriting a consumer skill under `harness/skills/`, use `/skill-creator` and follow the [Skill naming standard](docs/standards/skill-naming.md). The consumer inventory lives in [docs/skills.md](docs/skills.md).
+Before adding or substantially rewriting a consumer skill, use `/skill-creator` in the **assets** repo and follow the [Skill naming standard](docs/standards/skill-naming.md). Inventory: [docs/skills.md](docs/skills.md).
 
 ## Coding style
 
 - **CLI / Bash:** Match existing patterns in `blueprint` and `lib/blueprint/`. Prefer small, composable helpers over large one-off scripts.
-- **Harness content:** Prefer composition and blueprint overlays over forking entire profiles.
-- **Docs:** Keep root docs concise; put deep detail under `docs/`. Update docs when user-facing CLI behavior changes.
-- **Consumer contract:** Entrypoints live in `templates/entrypoints/`. Do not treat package-root `AGENTS.md` as a product-app contract.
+- **Harness content:** Edit [`assets-blueprint`](https://github.com/krerapus/assets-blueprint); prefer composition and blueprint overlays over forking entire profiles.
+- **Docs:** Keep root docs concise; put deep detail under `docs/`. State which repo owns the content. Update docs when user-facing CLI behavior changes.
+- **Consumer contract:** Entrypoint templates live in the `core` pack (plus `builtin/` for offline). Do not treat package-root `AGENTS.md` as a product-app contract.
 - **Do not** commit live `.cursor/` / `.claude/` / `.agents/` trees or task-memory files into this package.
 
 ## Testing / review expectations
@@ -126,6 +137,7 @@ Before requesting review:
 ./tests/cli/smoke.sh
 ./tests/cli/harness.sh
 ./blueprint doctor
+./blueprint assets doctor --offline
 ```
 
 If you change install/sync/init/del behavior, exercise a temporary consumer target with `--dry-run` first, then a real throwaway directory.

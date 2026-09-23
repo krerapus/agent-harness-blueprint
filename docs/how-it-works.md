@@ -69,9 +69,9 @@ On install/sync/update, unresolved conflicts emit a **project-level warning** (p
 
 ## Update loop
 
-1. Edit package sources under `harness/` / `templates/` / `blueprints/`.
-2. In the consumer: `./blueprint sync --dry-run`, review, then `sync`.
-3. Run `./blueprint doctor --target .`.
+1. Edit content in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) (`packs/core/harness|templates|blueprints/…`), bump the pack, then `blueprint assets update` (or use a sibling checkout / `BLUEPRINT_ASSETS_ROOT`). CLI behavior changes stay in this repo under `blueprint` / `lib/blueprint/`.
+2. In the consumer: `blueprint sync --dry-run`, review, then `sync`.
+3. Run `blueprint doctor --target .`.
 
 When consumer state `source` is a git URL, `sync` / `install` fetch or update a local cache (`$XDG_CACHE_HOME/blueprint/repos/`) before copying. Status symbols (`→` `✓` `!` `✗` `⊘` `~` `+`) stream per file; a final summary reports added / updated / skipped / failed counts and a run ID.
 

@@ -1,6 +1,6 @@
 # Recommended GitHub labels
 
-Suggested labels for [Supparerk23/agent-harness-blueprint](https://github.com/Supparerk23/agent-harness-blueprint). Create these in **Settings → Labels** (or via `gh label create`) so issues and PRs stay sortable for newcomers.
+Suggested labels for [krerapus/agent-harness-blueprint](https://github.com/krerapus/agent-harness-blueprint). Create these in **Settings → Labels** (or via `gh label create`) so issues and PRs stay sortable for newcomers. Harness *content* issues usually belong in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint).
 
 ## Core
 
@@ -20,8 +20,9 @@ Suggested labels for [Supparerk23/agent-harness-blueprint](https://github.com/Su
 
 | Label | Color (hex) | Description |
 |---|---|---|
-| `cli` | `#0e8a16` | `blueprint` CLI behavior |
-| `harness` | `#1d76db` | Commands, rules, or skills under `harness/` |
+| `cli` | `#0e8a16` | `blueprint` CLI / runtime behavior (this repo) |
+| `harness` | `#1d76db` | Pack content (prefer filing against `assets-blueprint`) |
+| `assets` | `#5319e7` | Asset manager / pack install path in this CLI |
 | `breaking` | `#b60205` | Breaking change for adopters |
 | `security` | `#ee0701` | Security-related (prefer private advisories first) |
 

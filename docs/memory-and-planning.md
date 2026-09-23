@@ -2,7 +2,7 @@
 
 `/start` keeps **planning**, **telemetry**, **rationale**, **draft learning**, and **safety memory** in separate files in the **adopting project** so agents do not treat chat logs as the system of record.
 
-These files are **not** part of the blueprint package. Package templates live under `templates/memory/` and `harness/skills/*/templates.md`.
+These files are **not** part of the CLI package. Templates live in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) under `packs/core/templates/memory/`, `packs/memories/`, and `packs/core/harness/skills/*/templates.md` (legacy mirrors may exist in this checkout).
 
 ## Consumer repo-root files
 

@@ -1,6 +1,6 @@
 # Skill naming standard
 
-Normative rules for package skills under [`harness/skills/`](../harness/skills/). Agents and humans MUST follow this when creating or renaming skills.
+Normative rules for skills under [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) `packs/core/harness/skills/` (legacy mirror: [`harness/skills/`](../harness/skills/)). Agents and humans MUST follow this when creating or renaming skills. Edit the pack, not only the legacy mirror — see [architecture-split.md](../architecture-split.md).
 
 ## Purpose
 

@@ -2,33 +2,41 @@
 
 Reusable multi-agent harness for **Cursor**, **Claude Code**, **OpenAI Codex**, and any tool that honors `AGENTS.md`.
 
-This repository is the **CLI + runtime** (`agent-harness-blueprint`). Static packs live in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint). Homebrew formula: [`homebrew-blueprint`](https://github.com/krerapus/homebrew-blueprint). See [docs/architecture-split.md](docs/architecture-split.md).
+This repository is the **CLI + runtime** only. Static packs and the Homebrew Formula live in sibling repos — see [Where content lives](#where-content-lives) and [docs/architecture-split.md](docs/architecture-split.md).
 
-Adopting projects run `init` → `assets install core` (once) → `install` before product work. Live `.cursor/` / `.claude/` / `.agents/` trees and task memory files belong in consumers only.
+Adopting projects run `init` → `assets install core` → `install` before product work. Live `.cursor/` / `.claude/` / `.agents/` trees and task memory files belong in consumers only.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
+## Where content lives
+
+| Repo | Role | Edit here when… |
+|------|------|-----------------|
+| **This repo** — [agent-harness-blueprint](https://github.com/krerapus/agent-harness-blueprint) | CLI, projection runtime, `builtin/` bootstrap, `contributor/`, CLI releases | Changing install/sync/doctor/assets commands, release packaging, offline bootstrap |
+| **[assets-blueprint](https://github.com/krerapus/assets-blueprint)** | Versioned packs (`core`, `prompts`, `memories`, `examples`) | Changing commands, rules, skills, blueprints, templates, prompts, examples |
+| **[homebrew-blueprint](https://github.com/krerapus/homebrew-blueprint)** | Homebrew Formula only | Updating Formula urls / sha256 (usually via automated PR after a CLI release) |
+
+In-tree `harness/`, `templates/`, `blueprints/`, `prompts/`, and `examples/` in this checkout are **legacy fallbacks** during the assets transition. Canonical edits belong in `assets-blueprint`.
+
 ## Why this project exists
 
 Teams using AI coding agents need a **shared contract**: the same safety rails, planning memory, slash playbooks, and install path across tools—without copying one-off `.cursor/` trees into every repo.
 
-This package keeps harness sources canonical, projects them into tool runtimes on demand, and preserves local consumer overrides and memory state on sync.
+This package keeps the CLI and projection runtime canonical, loads harness content from asset packs, and preserves local consumer overrides and memory state on sync.
 
 ## Features
 
 - **Multi-runtime projection** — install into Cursor, Claude Code, Codex, or all (`--runtime`)
-- **Blueprint profiles** — `default`, `engineering`, `startup` (+ optional GitLab overlay)
+- **Blueprint profiles** — `default`, `engineering`, `startup` (+ optional GitLab overlay) from the `core` pack
 - **Managed consumer contract** — `HARNESS.md` + harness reference in `AGENTS.md` / `agents.md`
 - **Preserve-local sync** — refreshes managed files without clobbering memory or agent bodies
 - **Interactive TTY menu** — guided `init` / `install` / `sync` / `update` / `doctor` / `rm`
+- **Asset manager** — install/update versioned packs from GitHub Releases or a local checkout
 - **Remote source cache** — git URL sources resolve under `$XDG_CACHE_HOME/blueprint/repos/`
-- **Docs + skills** — planning, review, commit, and specialized skill packs under `harness/`
 
 ## How it works
-
-This repo is the **CLI + runtime**. Static packs live in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint). Homebrew Formula lives in [`homebrew-blueprint`](https://github.com/krerapus/homebrew-blueprint).
 
 ```mermaid
 flowchart LR
@@ -43,14 +51,19 @@ flowchart LR
   cliRepo -->|init_install_sync| user
 ```
 
-Canonical content lives under `harness/` (and/or installed asset packs). Tool runtimes are projections. `AGENTS.md` is the shared contract every agent reads.
+Canonical harness content comes from packs (or a legacy in-tree fallback). Tool runtimes are projections. `AGENTS.md` is the shared contract every agent reads.
 
 ```mermaid
 flowchart LR
-  subgraph package [This package]
-    harness[harness/]
-    entry[templates/entrypoints/]
+  subgraph package [This package - CLI]
+    builtin[builtin/]
     cli[./blueprint]
+    lib[lib/blueprint/]
+  end
+
+  subgraph packs [assets-blueprint packs]
+    harness[core harness/]
+    entry[core templates/]
   end
 
   subgraph consumer [Your project]
@@ -63,16 +76,19 @@ flowchart LR
 
   cli -->|init| agents
   cli -->|init| memory
+  builtin -->|offline bootstrap| agents
   entry -->|init| agents
   harness -->|install| cursor
   harness -->|install| claude
   harness -->|install| agentsRt
+  lib --> cli
 ```
 
 | Concept | Detail |
 |---|---|
-| Package | `harness/`, `blueprints/`, `templates/`, `./blueprint` |
-| Consumer contract | `AGENTS.md` (+ thin `CLAUDE.md`) |
+| CLI package | `blueprint`, `lib/blueprint/`, `builtin/`, `contributor/`, `VERSION` |
+| Content packs | `assets-blueprint` → `core` / `prompts` / `memories` / `examples` |
+| Consumer contract | `HARNESS.md`, `AGENTS.md` (+ thin `CLAUDE.md`) |
 | Runtimes | `.cursor/`, `.claude/`, and/or `.agents/` from `--runtime` |
 
 Deep dive: [docs/architecture.md](docs/architecture.md) · [docs/architecture-split.md](docs/architecture-split.md) · [docs/compatibility.md](docs/compatibility.md)
@@ -83,63 +99,42 @@ Deep dive: [docs/architecture.md](docs/architecture.md) · [docs/architecture-sp
 
 Requirements: Bash, Git, macOS or Linux.
 
+**Homebrew (recommended):**
+
+```bash
+brew tap krerapus/blueprint
+brew trust --formula krerapus/blueprint/blueprint   # Homebrew 6+/7, once
+brew install krerapus/blueprint/blueprint
+blueprint assets install core
+```
+
+**From a git checkout:**
+
 ```bash
 git clone https://github.com/krerapus/agent-harness-blueprint.git
 cd agent-harness-blueprint
-
-# Optional: put the CLI on PATH
-ln -sf "$(pwd)/blueprint" /usr/local/bin/blueprint
-```
-
-There is a Homebrew tap: `krerapus/homebrew-blueprint` (tap name `krerapus/blueprint`).
-
-```bash
-brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
-brew install blueprint
+ln -sf "$(pwd)/blueprint" /usr/local/bin/blueprint   # optional
 blueprint assets install core
 ```
 
-Release/distribution docs: [docs/release.md](docs/release.md), [docs/homebrew.md](docs/homebrew.md).
+For local pack development, check out [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) as a sibling (or set `BLUEPRINT_ASSETS_ROOT`).
 
-Until a `v*` GitHub Release with archives exists, install from a git checkout and symlink the `blueprint` executable, then:
-
-```bash
-blueprint assets install core
-```
-
-`scripts/agent` remains a back-compat shim that forwards to `./blueprint`.
+Release docs: [docs/release.md](docs/release.md), [docs/homebrew.md](docs/homebrew.md), [docs/distribution.md](docs/distribution.md).
 
 ### Quick Start
 
-Under 60 seconds from a package checkout:
-
 ```bash
-./blueprint doctor
-./blueprint init --target /path/to/your-repo
-./blueprint install default --runtime all --target /path/to/your-repo
-./blueprint doctor --target /path/to/your-repo
-```
-
-Example output shape:
-
-```text
-✓ package OK
-✓ wrote HARNESS.md
-✓ projected harness → .cursor/ .claude/ .agents/
-✓ target healthy
+blueprint doctor
+blueprint init --target /path/to/your-repo
+blueprint install default --runtime all --target /path/to/your-repo
+blueprint doctor --target /path/to/your-repo
 ```
 
 Then open the consumer repo in Cursor or Claude Code and start with `/start`.
 
-Interactive menu (TTY):
+Interactive menu (TTY): `blueprint` or `blueprint menu --target /path/to/your-repo`.
 
-```bash
-./blueprint
-# or
-./blueprint menu --target /path/to/your-repo
-```
-
-Step-by-step checklist: [docs/setup.md](docs/setup.md)
+Step-by-step: [docs/setup.md](docs/setup.md)
 
 ### Configuration
 
@@ -170,6 +165,7 @@ Commands:
   sync                 Re-apply installed blueprint with preserve-local
   rm / del             Remove blueprint from --target
   doctor               Validate package + target install health
+  assets …             list | install | update | doctor for content packs
 
 Blueprints:  default | engineering | startup
 
@@ -184,39 +180,26 @@ Flags:
 
 | Step | Result |
 |---|---|
+| `assets install core` | Fetches/mounts the `core` pack (required before meaningful `install` on Release/Homebrew installs) |
 | `init` | `HARNESS.md`, agent harness reference, memory skeletons, managed `.gitignore` — **no** tool runtime yet |
-| `install` | Projects commands/rules/skills into `.cursor/`, `.claude/`, and/or `.agents/`; writes managed `.gitignore` for `--skill-mode rebase` (whole runtime dirs) or `merge` (blueprint skills/commands/rules/templates only) |
+| `install` | Projects commands/rules/skills into `.cursor/`, `.claude/`, and/or `.agents/` |
 | `install-contributor` | Package-only: projects `contributor/` + `skill-creator` into gitignored local runtimes |
-| `update` | Version check vs package `VERSION`, refresh `HARNESS.md`, apply skill/rule renames, full-refresh managed skills/rules — never rewrites agent instruction files |
-| `sync` | Re-applies the installed blueprint (`preserve-local`); may fetch a remote `source` |
-| `del` | Removes managed blueprint + memory files; keeps custom skills and agent instruction bodies (`rm` is an alias) |
+| `update` | Version check vs package `VERSION`, refresh `HARNESS.md`, apply skill/rule renames |
+| `sync` | Re-applies the installed blueprint (`preserve-local`) |
+| `del` | Removes managed blueprint + memory files; keeps custom skills and agent instruction bodies |
 
 History is stored under `$XDG_DATA_HOME/blueprint/history.jsonl` (no secrets).
 
 ### Examples
 
 ```bash
-# Core harness for any repo
-./blueprint install default --runtime all --target ~/code/my-app
-
-# Ignore only blueprint-projected files so local skills can be committed
-./blueprint install default --runtime cursor --skill-mode merge --target ~/code/my-app
-
-# Engineering workflows + GitLab MR playbooks
-./blueprint install engineering --overlay gitlab --runtime all --target ~/code/my-app
-
-# Startup / PRD-heavy profile
-./blueprint install startup --runtime cursor --target ~/code/my-app
-
-# Codex only (skills under .agents/skills/)
-./blueprint install default --runtime codex --target ~/code/my-app
-
-# Refresh later
-./blueprint sync --target ~/code/my-app
-./blueprint update --target ~/code/my-app
-
-# Preview without writing
-./blueprint install default --runtime all --target ~/code/my-app --dry-run
+blueprint install default --runtime all --target ~/code/my-app
+blueprint install default --runtime cursor --skill-mode merge --target ~/code/my-app
+blueprint install engineering --overlay gitlab --runtime all --target ~/code/my-app
+blueprint install startup --runtime cursor --target ~/code/my-app
+blueprint install default --runtime codex --target ~/code/my-app
+blueprint sync --target ~/code/my-app
+blueprint update --target ~/code/my-app
 ```
 
 | Blueprint | Use when |
@@ -225,85 +208,64 @@ History is stored under `$XDG_DATA_HOME/blueprint/history.jsonl` (no secrets).
 | `engineering` | Commit/refactor/ADR workflows |
 | `startup` | PRD/ADR-heavy early product work |
 
-Example consumer layout: [examples/consumer/](examples/consumer/)
-
-After install, the delivery loop is: orient → `/start` → plan → execute → update memory → ship → learn. See [docs/harness-workflow.md](docs/harness-workflow.md).
+After install: orient → `/start` → plan → execute → update memory → ship → learn. See [docs/harness-workflow.md](docs/harness-workflow.md).
 
 ### Uninstall
 
-From a consumer project:
-
 ```bash
-./blueprint rm --target /path/to/your-repo           # interactive confirm (alias: del)
-./blueprint rm --force --target /path/to/your-repo  # non-interactive / CI
+blueprint rm --target /path/to/your-repo
+blueprint rm --force --target /path/to/your-repo   # non-interactive / CI
+rm -f /usr/local/bin/blueprint                     # if you added a PATH symlink
 ```
 
-Remove the PATH symlink if you added one:
-
-```bash
-rm -f /usr/local/bin/blueprint
-```
-
-Optionally delete the package checkout. `rm` / `del` does not rewrite `AGENTS.md` / `CLAUDE.md` bodies.
+`rm` / `del` does not rewrite `AGENTS.md` / `CLAUDE.md` bodies.
 
 ## How to update source
 
-### Refresh consumers after pulling this package
+### Refresh consumers after a CLI or pack change
 
 ```bash
-cd /path/to/agent-harness-blueprint
+# CLI checkout
 git pull
+blueprint update --target /path/to/your-repo
+# or
+blueprint sync --target /path/to/your-repo
 
-# Refresh managed files in each consumer
-./blueprint update --target /path/to/your-repo
-# or re-apply projections while preserving local memory
-./blueprint sync --target /path/to/your-repo
+# Pack updates (from assets-blueprint Releases)
+blueprint assets update core
 ```
 
-### Edit this package
+### Edit the right repo
 
-```bash
-git clone https://github.com/krerapus/agent-harness-blueprint.git
-cd agent-harness-blueprint
-./blueprint doctor
-```
+| Change | Repo | Notes |
+|--------|------|-------|
+| CLI behavior, assets manager, projection | **this repo** | `blueprint`, `lib/blueprint/`; bump [`VERSION`](VERSION) |
+| Offline bootstrap templates | **this repo** | `builtin/` |
+| Contributor commit/PR playbooks | **this repo** | `contributor/` |
+| Skills, rules, commands, blueprints, templates | **[assets-blueprint](https://github.com/krerapus/assets-blueprint)** | `packs/core/…`; bump pack + `catalog.yaml` |
+| Prompts / memories / examples | **assets-blueprint** | matching pack |
+| Homebrew Formula | **[homebrew-blueprint](https://github.com/krerapus/homebrew-blueprint)** | usually auto-PR after CLI release |
 
-| Path | Purpose |
-|---|---|
-| `harness/` | Canonical commands, rules, skills (legacy during assets transition — prefer [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) packs) |
-| `blueprints/` | Profiles (`default`, `engineering`, `startup`) |
-| `templates/` | Entrypoints, memory, PRD/ADR |
-| `lib/blueprint/` | CLI modules (assets, harness, XDG, …) |
-| `builtin/` | Offline bootstrap shipped with the CLI |
-| `contributor/` | Package-only commit/PR/skill standards |
-| `prompts/` | Prompt library (legacy; prefer assets `prompts` pack) |
-| `tests/cli/` | Smoke and harness tests |
-| `VERSION` | **Only** place to bump CLI semver |
+Verify CLI changes: `./tests/cli/smoke.sh`, `./tests/cli/harness.sh`, `./blueprint doctor`.
 
-Checklist:
+Distribution: [docs/release.md](docs/release.md) → GitHub Release → Formula bump ([docs/homebrew.md](docs/homebrew.md)).
 
-1. Change CLI behavior under `blueprint` / `lib/blueprint/`, or content under `harness/` / templates / blueprints (or the sibling assets pack).
-2. Bump [`VERSION`](VERSION) when releasing the CLI; update [CHANGELOG.md](CHANGELOG.md).
-3. Run `./tests/cli/smoke.sh`, `./tests/cli/harness.sh`, and `./blueprint doctor`.
-4. For distribution: [docs/release.md](docs/release.md) → GitHub Release → formula bump on [`homebrew-blueprint`](https://github.com/krerapus/homebrew-blueprint) ([docs/homebrew.md](docs/homebrew.md)).
-5. For pack content owned by assets: edit [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) and publish pack tags; consumers run `blueprint assets update`.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Troubleshooting
 
 | Symptom | What to try |
 |---|---|
-| `doctor` fails on package | Run from the package root; ensure `VERSION`, `manifest.yaml`, and `harness/` are present |
+| `doctor` / install missing harness | `blueprint assets install core` (or sibling `assets-blueprint` / `BLUEPRINT_ASSETS_ROOT`) |
+| `doctor` fails on package | Run from the package root; ensure `VERSION`, `manifest.yaml`, and `lib/blueprint/` are present |
 | `install` asks for runtime in CI | Pass `--runtime cursor\|claude\|codex\|all` explicitly |
 | Target must not be this package | Point `--target` at a **consumer** repo, not this checkout |
-| Conflicts (`*.blueprint-conflict`) | Compare sibling files; merge manually; re-run with `--force` to overwrite; interactive update/sync also prompts to apply package versions |
-| Leftover backups (`*.blueprint-backup.*`) | After review, `./blueprint clean --force --target …` (or menu `clean` / Known projects → `clean`). Status `*` means clean is needed |
-| Stale remote blueprint | `sync` again, or clear `$XDG_CACHE_HOME/blueprint/repos/` and retry |
-| Interrupted install/sync | Re-run the same command; resume state lives under consumer `.agent-blueprint/` |
-| Menu has no targets | Add a path when prompted; package-local `targets.json` is gitignored |
+| Conflicts (`*.blueprint-conflict`) | Compare sibling files; merge manually; re-run with `--force` |
+| Leftover backups (`*.blueprint-backup.*`) | `./blueprint clean --force --target …` |
+| Stale remote blueprint | `sync` again, or clear `$XDG_CACHE_HOME/blueprint/repos/` |
+| Interrupted install/sync | Re-run; resume state under consumer `.agent-blueprint/` |
 
-More detail: [docs/setup.md](docs/setup.md) · [docs/how-it-works.md](docs/how-it-works.md)
+More: [docs/setup.md](docs/setup.md) · [docs/how-it-works.md](docs/how-it-works.md)
 
 ## Testing
 
@@ -311,27 +273,29 @@ More detail: [docs/setup.md](docs/setup.md) · [docs/how-it-works.md](docs/how-i
 ./tests/cli/smoke.sh
 ./tests/cli/harness.sh
 ./blueprint doctor
+./blueprint assets doctor --offline
 ```
 
 ## Roadmap
 
-- Packaged distribution (Homebrew and/or release binaries)
 - Richer `doctor` diagnostics for remote cache and overlay drift
 - Additional forge overlays beyond GitLab
+- Retire in-tree legacy `harness/` / `templates/` / `blueprints/` mirrors once packs are universal
 - More `good first issue` labeled tasks for community contributors
 
-Ideas welcome via [GitHub Issues](https://github.com/krerapus/agent-harness-blueprint/issues).
+Ideas: [GitHub Issues](https://github.com/krerapus/agent-harness-blueprint/issues).
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, branch naming, commits, PRs, how to update source, and testing. Everyone is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Docs index
 
 | Category | Doc |
 |---|---|
-| Architecture | [architecture.md](docs/architecture.md), [architecture-split.md](docs/architecture-split.md), [compatibility.md](docs/compatibility.md), [harness-ownership.md](docs/harness-ownership.md) |
-| Setup | [setup.md](docs/setup.md), [adoption-and-lineage.md](docs/adoption-and-lineage.md) |
+| Ownership / split | [architecture-split.md](docs/architecture-split.md) |
+| Architecture | [architecture.md](docs/architecture.md), [compatibility.md](docs/compatibility.md), [harness-ownership.md](docs/harness-ownership.md) |
+| Setup | [setup.md](docs/setup.md), [local-development.md](docs/local-development.md), [adoption-and-lineage.md](docs/adoption-and-lineage.md) |
 | How it works | [how-it-works.md](docs/how-it-works.md), [skills.md](docs/skills.md), [rules.md](docs/rules.md), [slash-commands.md](docs/slash-commands.md) |
 | Workflow | [harness-workflow.md](docs/harness-workflow.md), [quick-start.md](docs/quick-start.md), [memory-and-planning.md](docs/memory-and-planning.md) |
 | Release | [release.md](docs/release.md), [distribution.md](docs/distribution.md), [homebrew.md](docs/homebrew.md) |
@@ -342,17 +306,19 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bra
 
 ```text
 .
-├── harness/             # canonical commands, rules, skills (consumer)
-├── contributor/         # package-only commit/PR/skill standards
-├── blueprints/          # default | engineering | startup
-├── templates/           # entrypoints + memory + PRD/ADR
-├── builtin/             # offline bootstrap
-├── lib/blueprint/       # CLI modules
-├── prompts/             # prompt library
-├── docs/                # diagrams + deep docs
+├── blueprint            # CLI entry
+├── lib/blueprint/       # CLI modules (assets, harness, XDG, …)
+├── builtin/             # Offline bootstrap shipped with the CLI
+├── contributor/         # Package-only commit/PR/skill standards
+├── docs/                # CLI + projection + release docs
 ├── tests/cli/           # CLI smoke tests
-├── blueprint            # CLI: init | install | install-contributor | sync | doctor
-└── examples/consumer/   # example consumer install state
+├── scripts/             # package-release, verify, bump-homebrew-formula
+├── VERSION              # CLI semver only
+├── harness/             # LEGACY fallback — prefer assets-blueprint packs/core
+├── templates/           # LEGACY fallback — prefer packs/core
+├── blueprints/          # LEGACY fallback — prefer packs/core
+├── prompts/             # LEGACY fallback — prefer packs/prompts
+└── examples/            # LEGACY fallback — prefer packs/examples
 ```
 
 ## License

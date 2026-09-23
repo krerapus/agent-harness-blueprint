@@ -1,16 +1,21 @@
 # Architecture
 
-How the blueprint package relates to consuming projects and AI tools.
+How the Blueprint CLI relates to asset packs, consuming projects, and AI tools.
 
-## Package vs consumer
+For **which repo owns which files**, start with [architecture-split.md](architecture-split.md).
+
+## Package vs packs vs consumer
 
 ```mermaid
 flowchart LR
-  subgraph package [Blueprint package]
-    harness[harness/]
-    templates[templates/]
-    blueprints[blueprints/]
-    cli[blueprint]
+  subgraph cli [agent-harness-blueprint]
+    runtime[blueprint + lib/]
+    builtin[builtin/]
+  end
+
+  subgraph assets [assets-blueprint]
+    core[packs/core]
+    other[prompts memories examples]
   end
 
   subgraph consumer [Adopting project]
@@ -21,33 +26,35 @@ flowchart LR
     agentsRt[".agents/"]
   end
 
-  cli -->|"init"| agents
-  cli -->|"init"| memory
-  harness -->|"install --runtime"| cursor
-  harness -->|"install --runtime"| claude
-  harness -->|"install --runtime"| agentsRt
-  templates -->|"init / install"| agents
-  blueprints -->|"install profile"| cursor
-  blueprints -->|"install profile"| claude
-  blueprints -->|"install profile"| agentsRt
+  runtime -->|"assets install"| core
+  runtime -->|"init"| agents
+  runtime -->|"init"| memory
+  builtin -->|"offline bootstrap"| agents
+  core -->|"install --runtime"| cursor
+  core -->|"install --runtime"| claude
+  core -->|"install --runtime"| agentsRt
 ```
 
 ## Source of truth
 
-| Layer | Lives in package | Lands in consumer |
+| Layer | Canonical location | Lands in consumer |
 |---|---|---|
-| Commands / rules / skills | `harness/` | `.cursor/`, `.claude/`, and/or `.agents/` |
-| Shared AI contract | `templates/entrypoints/` | `HARNESS.md`, `AGENTS.md` (+ optional user `CLAUDE.md`) |
-| Memory skeletons | `templates/memory/` | `PLANNING.md`, … (once; never overwritten) |
-| Profiles | `blueprints/` | Selected extras + overlays |
+| Commands / rules / skills | `assets-blueprint` → `packs/core/harness/` | `.cursor/`, `.claude/`, and/or `.agents/` |
+| Profiles / overlays | `packs/core/blueprints/` | Selected extras + overlays |
+| Shared AI contract templates | `packs/core/templates/entrypoints/` (+ CLI `builtin/` offline) | `HARNESS.md`, `AGENTS.md` |
+| Memory skeletons | `packs/core/templates/memory/` / `packs/memories/` | `PLANNING.md`, … (once; never overwritten) |
+| Prompts | `packs/prompts/` | Optional / tooling use |
+| CLI + projection | this repo (`blueprint`, `lib/`, `builtin/`) | — |
 
-Canonical content is always edited under `harness/` (and templates), then projected with `install` / `sync`. Tool dirs are adapters, not forks.
+During transition, an in-tree `harness/` (etc.) in this repo may still resolve as a **legacy fallback** if no pack is installed. Prefer editing packs.
+
+Tool dirs are adapters, not forks: edit the pack, then `install` / `sync` / `assets update`.
 
 ## Multi-runtime projection
 
 ```mermaid
 flowchart TB
-  H[harness/commands rules skills]
+  H[core harness/commands rules skills]
   H --> C[".cursor/ Cursor"]
   H --> L[".claude/ Claude Code"]
   H --> X[".agents/ Codex"]
@@ -57,7 +64,7 @@ flowchart TB
   CM[CLAUDE.md] -->|points to AGENTS.md| A
 ```
 
-| Source | Cursor | Claude Code | Codex |
+| Source (under resolved core pack) | Cursor | Claude Code | Codex |
 |---|---|---|---|
 | `harness/commands/*.md` | `.cursor/commands/` | `.claude/commands/` | `.agents/commands/` |
 | `harness/skills/*/` | `.cursor/skills/` | `.claude/skills/` | `.agents/skills/` |
@@ -68,4 +75,4 @@ Codex discovers repository skills from `.agents/skills/` ([Codex skills](https:/
 
 `--runtime all` projects all three trees. Cursor also loads `.agents/skills/` and `.claude/skills/` for compatibility, so skills can appear more than once when multiple runtimes are installed.
 
-See also [compatibility.md](compatibility.md).
+See also [compatibility.md](compatibility.md) and [architecture-split.md](architecture-split.md).

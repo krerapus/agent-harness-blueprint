@@ -17,12 +17,16 @@ krerapus/homebrew-blueprint        ← Formula only (distribution metadata)
 Tap install:
 
 ```bash
-brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
-# Homebrew 6+: trust the formula once if prompted
+brew tap krerapus/blueprint
+# Optional explicit URL: brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
+
+# Homebrew 6+ (including 7): trust third-party formulae once
 brew trust --formula krerapus/blueprint/blueprint
-brew install blueprint
+
+brew install krerapus/blueprint/blueprint
 blueprint --version
 blueprint assets install core
+blueprint assets list
 ```
 
 (`krerapus/blueprint` is the tap name; the GitHub repo is `homebrew-blueprint`.)
@@ -76,6 +80,7 @@ grep sha256 /path/to/homebrew-blueprint/Formula/blueprint.rb
 ```bash
 brew update
 brew uninstall blueprint || true
+brew trust --formula krerapus/blueprint/blueprint   # once, if not already trusted
 brew install krerapus/blueprint/blueprint
 blueprint --version
 blueprint assets list
