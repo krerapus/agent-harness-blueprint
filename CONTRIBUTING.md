@@ -119,7 +119,7 @@ This writes gitignored `.cursor/` / `.claude/` / `.agents/` plus `.agent-bluepri
 | Rule | contributor-standards | [`contributor/rules/contributor-standards.mdc`](contributor/rules/contributor-standards.mdc) |
 | Skill | `skill-creator` | Prefer assets `packs/core/harness/skills/skill-creator/` (legacy: [`harness/skills/skill-creator/SKILL.md`](harness/skills/skill-creator/SKILL.md)) |
 
-Before adding or substantially rewriting a consumer skill, use `/skill-creator` in the **assets** repo and follow the [Skill naming standard](docs/standards/skill-naming.md). Inventory: [docs/skills.md](docs/skills.md).
+Before adding or substantially rewriting a consumer skill, use `/skill-creator` in the **assets** repo and follow the [Skill naming standard](https://github.com/krerapus/assets-blueprint/blob/master/docs/standards/skill-naming.md). Inventory: [assets docs/skills.md](https://github.com/krerapus/assets-blueprint/blob/master/docs/skills.md).
 
 ## Coding style
 

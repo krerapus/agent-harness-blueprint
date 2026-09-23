@@ -33,7 +33,7 @@ Standards for contributors working **on this CLI package**. Unrelated to consume
 
 `./blueprint install-contributor --runtime all` projects those into gitignored local runtimes (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-- Before adding or substantially rewriting a **consumer** skill, edit [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) and follow [docs/standards/skill-naming.md](docs/standards/skill-naming.md).
+- Before adding or substantially rewriting a **consumer** skill, edit [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) and follow [skill-naming](https://github.com/krerapus/assets-blueprint/blob/master/docs/standards/skill-naming.md).
 
 ## Package edit order
 

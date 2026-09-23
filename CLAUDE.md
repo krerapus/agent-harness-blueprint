@@ -17,7 +17,7 @@ Package-source only — does not install into target projects:
 
 - Commits: `contributor/commands/commit.md` (conventional commits, **no JIRA**)
 - PRs: `contributor/commands/pr.md` (GitHub `gh` + short **Release notes** for `CHANGELOG.md`)
-- Skill: `skill-creator` from the `core` pack (legacy mirror may exist under `harness/skills/skill-creator/`). See [docs/standards/skill-naming.md](docs/standards/skill-naming.md) and [docs/skills.md](docs/skills.md).
+- Skill: `skill-creator` from the `core` pack (legacy mirror may exist under `harness/skills/skill-creator/`). See [skill-naming](https://github.com/krerapus/assets-blueprint/blob/master/docs/standards/skill-naming.md) and [skills inventory](https://github.com/krerapus/assets-blueprint/blob/master/docs/skills.md).
 - Optional local IDE projection: `./blueprint install-contributor --runtime all` (`/commit`, `/pr`, `skill-creator`)
 
 ## Do
