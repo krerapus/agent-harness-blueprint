@@ -49,8 +49,9 @@ $(brew --prefix)/Cellar/blueprint/<ver>/
 ## End-user install (Homebrew)
 
 ```bash
-brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
-brew install blueprint
+brew tap krerapus/blueprint
+brew trust --formula krerapus/blueprint/blueprint   # Homebrew 6+/7, once
+brew install krerapus/blueprint/blueprint
 blueprint --version
 blueprint assets install core
 blueprint assets list

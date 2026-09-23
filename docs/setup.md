@@ -7,8 +7,9 @@ Required steps before product work in any adopting repository.
 **Homebrew:**
 
 ```bash
-brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
-brew install blueprint
+brew tap krerapus/blueprint
+brew trust --formula krerapus/blueprint/blueprint   # Homebrew 6+/7, once
+brew install krerapus/blueprint/blueprint
 blueprint assets install core
 ```
 
