@@ -1,13 +1,13 @@
 # Rules
 
-Concepts for files under `harness/rules/` (projected into the consumer runtime `rules/` directory).
+Concepts for files under `packs/core/harness/rules/` in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) (projected into the consumer runtime `rules/` directory). Legacy mirror: `harness/rules/` in this checkout — see [architecture-split.md](architecture-split.md).
 
 Rules are markdown files with YAML frontmatter:
 
 - **`alwaysApply: true`** — broadly injected context; keep bullets tight so prompts stay usable.
 - **`alwaysApply: false` + `globs`** — only attach when editing matching paths.
 
-Shared defaults live under `harness/rules/`. After install:
+Shared defaults ship in the `core` pack. After install:
 
 - Cursor: `.cursor/rules/*.mdc`
 - Claude Code: `.claude/rules/*.md` (same content; Cursor-only frontmatter keys are ignored)

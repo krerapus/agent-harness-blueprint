@@ -24,7 +24,7 @@ Case-sensitive detection at the **repository root only** (never recursive; ignor
 2. `agents.md`
 3. `CLAUDE.md`
 4. `claude.md`
-5. Create `AGENTS.md` from `templates/entrypoints/AGENTS.md`
+5. Create `AGENTS.md` from the resolved pack (or builtin) `templates/entrypoints/AGENTS.md`
 
 Rules:
 
@@ -73,7 +73,7 @@ If only `START` or only `END` is present (or duplicates), `init` leaves the inst
 
 ### Skill / rule renames
 
-`update` (and install/sync projections) read [`harness/migrations/renames.log`](../harness/migrations/renames.log) and **remove obsolete paths** under each installed runtime before writing current names. Example: `memory-system-protocol` → `context-recall`, `planning-execution-tracking` → `task-execution`.
+`update` (and install/sync projections) read `harness/migrations/renames.log` from the **resolved core pack** and **remove obsolete paths** under each installed runtime before writing current names. Example: `memory-system-protocol` → `context-recall`, `planning-execution-tracking` → `task-execution`.
 
 On `update` only, package skills and rules are **full-refreshed** (destination skill dirs wiped, then copied from the package) so stale files inside a renamed or rebuilt skill do not linger. Append a new row to `renames.log` whenever you rename a managed skill or rule — keep historical rows.
 

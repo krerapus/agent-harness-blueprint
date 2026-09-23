@@ -1,10 +1,10 @@
 # Slash commands
 
-Inventory of playbooks under `harness/commands/` (projected into the consumer runtime `commands/` directory).
+Inventory of playbooks under `packs/core/harness/commands/` in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) (projected into the consumer runtime `commands/` directory). Legacy mirrors may still exist under `harness/commands/` and `blueprints/` in this checkout — see [architecture-split.md](architecture-split.md).
 
 After install, the same playbooks appear under `.cursor/commands/`, `.claude/commands/`, and/or `.agents/commands/`.
 
-| Command | Source | Purpose |
+| Command | Source (core pack) | Purpose |
 |---|---|---|
 | `/start` | `harness/commands/start.md` | Branch + reset task memory skeletons (`PLANNING`, `RUN_LOG`, caches). |
 | `/commit` | `harness/commands/commit.md` | Inspect diffs/staging, craft conventional commits, push. Does **not** open a PR/MR — use `/pr`. *(Template references JIRA + guarded branches—adapt on GitHub-only repos.)* |
