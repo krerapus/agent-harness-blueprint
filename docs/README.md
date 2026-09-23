@@ -30,6 +30,7 @@ Sibling repos: [assets-blueprint](https://github.com/krerapus/assets-blueprint) 
 | Document | Contents |
 |---|---|
 | [setup.md](setup.md) | Init → assets → install → doctor flow |
+| [local-development.md](local-development.md) | Dev mode: sibling packs, XDG sandbox, tests |
 | [adoption-and-lineage.md](adoption-and-lineage.md) | Adoption checklist |
 
 ### How it works

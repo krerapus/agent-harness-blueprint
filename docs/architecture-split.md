@@ -100,6 +100,7 @@ Dev: place `assets-blueprint` as a sibling of this repo, or set `BLUEPRINT_ASSET
 
 ## Related docs
 
+- Local/dev testing: [local-development.md](local-development.md)
 - Projection behavior: [architecture.md](architecture.md)
 - Package vs consumer paths: [compatibility.md](compatibility.md)
 - CLI release: [release.md](release.md) · [distribution.md](distribution.md) · [homebrew.md](homebrew.md)

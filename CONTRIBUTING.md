@@ -35,6 +35,8 @@ Package orientation:
 
 Bump the CLI semver only in [`VERSION`](VERSION).
 
+Full local/dev workflow (sibling packs, isolated XDG, throwaway consumers, test scripts): [docs/local-development.md](docs/local-development.md).
+
 ## How this repo works
 
 This repository ships the `blueprint` CLI, builtin bootstrap, contributor tooling, and release packaging. It loads harness content from asset packs (or a legacy in-tree fallback), then projects into consumer `.cursor/` / `.claude/` / `.agents/` trees.
