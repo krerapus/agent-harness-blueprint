@@ -48,7 +48,7 @@ CLI release archives contain `blueprint`, `VERSION`, `LICENSE`, `README.md`, `li
 | `memories` | `packs/memories/` | Root memory skeleton templates |
 | `examples` | `packs/examples/` | Consumer examples |
 
-Also: `catalog.yaml`, `scripts/package-pack.sh`, pack release workflow / tags (`core-vX.Y.Z`, …).
+Also: `catalog.yaml`, `scripts/package-pack.sh`, pack release workflow / tags (`core-vX.Y.Z`, …), and pack-author docs under [`docs/`](https://github.com/krerapus/assets-blueprint/tree/master/docs) (skills inventory + skill-naming standard).
 
 **Edit harness content, blueprints, consumer entrypoint templates, prompts, and examples there** — then bump the pack version and catalog. Consumers refresh with `blueprint assets update`.
 

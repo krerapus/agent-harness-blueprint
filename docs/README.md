@@ -38,7 +38,7 @@ Sibling repos: [assets-blueprint](https://github.com/krerapus/assets-blueprint) 
 | Document | Contents |
 |---|---|
 | [how-it-works.md](how-it-works.md) | Read order, layers, conflict policy |
-| [skills.md](skills.md) | Skill concepts (`packs/core/harness/skills/`) |
+| [skills.md](skills.md) | Skill concepts → canonical inventory in [assets-blueprint](https://github.com/krerapus/assets-blueprint/blob/master/docs/skills.md) |
 | [rules.md](rules.md) | Rule concepts (`packs/core/harness/rules/`) |
 | [slash-commands.md](slash-commands.md) | Slash playbook inventory |
 
@@ -59,7 +59,7 @@ Sibling repos: [assets-blueprint](https://github.com/krerapus/assets-blueprint) 
 | [SECURITY.md](../SECURITY.md) | Vulnerability reporting |
 | [CHANGELOG.md](../CHANGELOG.md) | Keep a Changelog release notes |
 | [github-labels.md](github-labels.md) | Recommended GitHub labels |
-| [standards/skill-naming.md](standards/skill-naming.md) | Skill naming (`<action>-<object>[-<context>]`) |
+| [standards/skill-naming.md](standards/skill-naming.md) | Skill naming → canonical in [assets-blueprint](https://github.com/krerapus/assets-blueprint/blob/master/docs/standards/skill-naming.md) |
 
 ## CLI
 
