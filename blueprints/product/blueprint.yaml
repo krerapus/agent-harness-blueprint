@@ -1,7 +1,7 @@
-name: startup
+name: product
 # Tracks package VERSION (./VERSION) — do not hardcode a semver here.
 extends: default
-description: Lightweight startup profile — planning harness plus PRD/ADR templates.
+description: Product discovery profile — planning harness plus PRD/ADR templates.
 
 includes:
   templates:

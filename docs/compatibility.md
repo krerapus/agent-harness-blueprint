@@ -22,7 +22,7 @@ This repository is the **CLI + runtime**. Consuming projects receive a shared `A
 |---|---|
 | `packs/core/harness/` | Canonical shared commands, rules, skills, migrations |
 | `packs/core/templates/` | Entrypoints, memory, PRD/ADR/review templates |
-| `packs/core/blueprints/` | Profiles (`default`, `engineering`, `startup`) |
+| `packs/core/blueprints/` | Profiles (`default`, `engineering`, `product`) |
 | `packs/prompts/` | Prompt library |
 | `packs/memories/` | Root memory skeleton templates |
 | `packs/examples/` | Consumer examples |

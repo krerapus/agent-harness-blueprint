@@ -29,7 +29,7 @@ This package keeps the CLI and projection runtime canonical, loads harness conte
 ## Features
 
 - **Multi-runtime projection** — install into Cursor, Claude Code, Codex, or all (`--runtime`)
-- **Blueprint profiles** — `default`, `engineering`, `startup` (+ optional GitLab overlay) from the `core` pack
+- **Blueprint profiles** — `default`, `engineering`, `product` (+ optional GitLab overlay) from the `core` pack
 - **Managed consumer contract** — `HARNESS.md` + harness reference in `AGENTS.md` / `agents.md`
 - **Preserve-local sync** — refreshes managed files without clobbering memory or agent bodies
 - **Interactive TTY menu** — guided `init` / `install` / `sync` / `update` / `doctor` / `rm`
@@ -167,7 +167,7 @@ Commands:
   doctor               Validate package + target install health
   assets …             list | install | update | doctor for content packs
 
-Blueprints:  default | engineering | startup
+Blueprints:  default | engineering | product
 
 Flags:
   --overlay gitlab     Install GitLab/glab command overlay
@@ -196,7 +196,8 @@ History is stored under `$XDG_DATA_HOME/blueprint/history.jsonl` (no secrets).
 blueprint install default --runtime all --target ~/code/my-app
 blueprint install default --runtime cursor --skill-mode merge --target ~/code/my-app
 blueprint install engineering --overlay gitlab --runtime all --target ~/code/my-app
-blueprint install startup --runtime cursor --target ~/code/my-app
+blueprint install product --runtime cursor --target ~/code/my-app
+blueprint switch engineering --target ~/code/my-app
 blueprint install default --runtime codex --target ~/code/my-app
 blueprint sync --target ~/code/my-app
 blueprint update --target ~/code/my-app
@@ -206,7 +207,7 @@ blueprint update --target ~/code/my-app
 |---|---|
 | `default` | Any repo — start/review, safety, core skills |
 | `engineering` | Commit/refactor/ADR workflows |
-| `startup` | PRD/ADR-heavy early product work |
+| `product` | PRD/ADR-heavy early product discovery (formerly `startup`) |
 
 After install: orient → `/start` → plan → execute → update memory → ship → learn. See [docs/harness-workflow.md](docs/harness-workflow.md).
 

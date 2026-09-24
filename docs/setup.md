@@ -107,7 +107,7 @@ Interactive `blueprint` remembers consumer targets under `$XDG_DATA_HOME/bluepri
 ```mermaid
 flowchart TB
   default[default] --> engineering[engineering]
-  default --> startup[startup]
+  default --> product[product]
   engineering --> gitlab[gitlab overlay]
 ```
 
@@ -115,7 +115,7 @@ flowchart TB
 |---|---|
 | `default` | Core harness |
 | `engineering` | Commit / review depth + optional forge overlay |
-| `startup` | PRD / ADR templates |
+| `product` | PRD / ADR templates (formerly `startup`) |
 
 Profiles ship in the `core` pack (`assets-blueprint`), not in the CLI release archive.
 

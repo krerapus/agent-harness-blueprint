@@ -137,6 +137,7 @@ render_menu() {
   render_panel_cmd_row "4" "update" "Version check + refresh managed context" "$width"
   render_panel_cmd_row "5" "doctor" "Validate package / target health" "$width"
   render_panel_cmd_row "6" "target" "Change consumer project path" "$width"
+  render_panel_cmd_row "7" "switch" "Change profile (default / engineering / product)" "$width"
   render_panel_sep "$width"
   render_panel_cmd_row "h" "help" "Show CLI usage" "$width" "cyan" "left"
   render_panel_cmd_row "q" "quit" "Exit" "$width" "cyan" "left"
