@@ -1,6 +1,6 @@
 # Rules
 
-Concepts for files under `packs/core/harness/rules/` in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) (projected into the consumer runtime `rules/` directory). Legacy mirror: `harness/rules/` in this checkout — see [architecture-split.md](architecture-split.md).
+Concepts for files under `packs/core/harness/rules/` in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) (projected into the consumer runtime `rules/` directory). See [architecture-split.md](architecture-split.md).
 
 Rules are markdown files with YAML frontmatter:
 

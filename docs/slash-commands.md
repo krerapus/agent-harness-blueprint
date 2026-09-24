@@ -1,6 +1,6 @@
 # Slash commands
 
-Inventory of playbooks under `packs/core/harness/commands/` in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) (projected into the consumer runtime `commands/` directory). Legacy mirrors may still exist under `harness/commands/` and `blueprints/` in this checkout — see [architecture-split.md](architecture-split.md).
+Inventory of playbooks under `packs/core/harness/commands/` in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) (projected into the consumer runtime `commands/` directory). See [architecture-split.md](architecture-split.md).
 
 After install, the same playbooks appear under `.cursor/commands/`, `.claude/commands/`, and/or `.agents/commands/`.
 

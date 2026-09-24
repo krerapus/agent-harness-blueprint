@@ -9,6 +9,18 @@ TMP="${ROOT}/.tmp-consumer-test"
 PASS=0
 FAIL=0
 
+# Pack content lives in assets-blueprint (sibling or BLUEPRINT_ASSETS_ROOT).
+ASSETS_ROOT="${BLUEPRINT_ASSETS_ROOT:-}"
+if [[ -z "$ASSETS_ROOT" || ! -d "${ASSETS_ROOT}/packs/core/harness" ]]; then
+  ASSETS_ROOT="$(cd "${ROOT}/.." && pwd)/assets-blueprint"
+fi
+if [[ ! -d "${ASSETS_ROOT}/packs/core/harness" ]]; then
+  echo "FAIL: core pack not found. Set BLUEPRINT_ASSETS_ROOT or place assets-blueprint as a sibling of this repo."
+  exit 1
+fi
+export BLUEPRINT_ASSETS_ROOT="$ASSETS_ROOT"
+CORE_PACK="${ASSETS_ROOT}/packs/core"
+
 assert_eq() {
   local label="$1" got="$2" want="$3"
   if [[ "$got" == "$want" ]]; then
@@ -272,9 +284,9 @@ out="$(CI=1 NO_COLOR=1 "$BP" doctor --target "$ROOT" 2>&1)"
 assert_contains "doctor package mode" "$out" "package-source"
 assert_contains "lib modules checked" "$out" "lib/blueprint"
 assert_contains "skill naming ok" "$out" "package skills match naming standard"
-assert_file "generate-test-cases skill" "$ROOT/harness/skills/generate-test-cases/SKILL.md"
-assert_contains "generate-test-cases name" "$(head -5 "$ROOT/harness/skills/generate-test-cases/SKILL.md")" "name: generate-test-cases"
-assert_contains "renames log has testcase rename" "$(cat "$ROOT/harness/migrations/renames.log")" "testcase-generator"
+assert_file "generate-test-cases skill" "$CORE_PACK/harness/skills/generate-test-cases/SKILL.md"
+assert_contains "generate-test-cases name" "$(head -5 "$CORE_PACK/harness/skills/generate-test-cases/SKILL.md")" "name: generate-test-cases"
+assert_contains "renames log has testcase rename" "$(cat "$CORE_PACK/harness/migrations/renames.log")" "testcase-generator"
 
 echo "== history written =="
 hist="${XDG_DATA_HOME}/blueprint/history.jsonl"
@@ -341,7 +353,9 @@ echo "== file:// cache clone =="
 src_repo="$(mktemp -d "${TMPDIR:-/tmp}/bp-src-XXXXXX")"
 rm -rf "$src_repo"
 mkdir -p "$src_repo"
-cp -R "${ROOT}/harness" "${ROOT}/blueprints" "${ROOT}/templates" "${ROOT}/manifest.yaml" "${ROOT}/VERSION" "$src_repo/"
+# Fixture mimics a CLI+pack layout using the assets core pack (no in-tree legacy mirrors).
+cp -R "${CORE_PACK}/harness" "${CORE_PACK}/blueprints" "${CORE_PACK}/templates" "${CORE_PACK}/manifest.yaml" "$src_repo/"
+cp "${ROOT}/VERSION" "$src_repo/VERSION"
 mkdir -p "${src_repo}/prompts/system"
 echo "# sys" > "${src_repo}/prompts/system/README.md"
 cp "${ROOT}/blueprint" "$src_repo/blueprint"

@@ -22,19 +22,24 @@ This repository is the **CLI + runtime**. Consuming projects receive a shared `A
 |---|---|
 | `packs/core/harness/` | Canonical shared commands, rules, skills, migrations |
 | `packs/core/templates/` | Entrypoints, memory, PRD/ADR/review templates |
-| `packs/core/blueprints/` | Profiles (`default`, `engineering`, `startup`) |
+| `packs/core/blueprints/` | Profiles (`default`, `engineering`, `product`) |
 | `packs/prompts/` | Prompt library |
 | `packs/memories/` | Root memory skeleton templates |
 | `packs/examples/` | Consumer examples |
 | `catalog.yaml` | Published pack versions and release asset names |
 
-Resolution order for packs: `BLUEPRINT_ASSETS_ROOT` / sibling checkout → XDG cache → **legacy** in-tree `harness/` (etc.) in this repo.
+Resolution order for packs: `BLUEPRINT_ASSETS_ROOT` / sibling checkout → XDG cache. There is **no** in-tree `harness/` fallback in this repo.
 
 ## Legacy mirrors in this checkout (not SoT)
 
 | Path | Status |
 |---|---|
-| `harness/`, `templates/`, `blueprints/`, `prompts/`, `examples/` | Transition fallback only — edit the matching pack in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) |
+| CLI-only trees | Meaning |
+|---|---|
+| `builtin/` | Offline bootstrap templates shipped in the CLI archive |
+| `contributor/` | Package-contributor playbooks (not consumer install) |
+
+Pack trees (`harness/`, `templates/`, `blueprints/`, `prompts/`, `examples/`) live only in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint).
 
 ## Consumer-only paths (do not commit in this package)
 

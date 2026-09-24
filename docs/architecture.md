@@ -46,7 +46,7 @@ flowchart LR
 | Prompts | `packs/prompts/` | Optional / tooling use |
 | CLI + projection | this repo (`blueprint`, `lib/`, `builtin/`) | — |
 
-During transition, an in-tree `harness/` (etc.) in this repo may still resolve as a **legacy fallback** if no pack is installed. Prefer editing packs.
+During transition this repo used in-tree pack mirrors; those are **removed**. Prefer editing packs in `assets-blueprint`.
 
 Tool dirs are adapters, not forks: edit the pack, then `install` / `sync` / `assets update`.
 

@@ -80,7 +80,7 @@ assets_cached_pack_dir() {
   return 1
 }
 
-# Resolve pack directory: env repo → cache → legacy CLI tree.
+# Resolve pack directory: env repo → sibling checkout → XDG cache.
 # Sets ASSETS_PACK_DIR_<NAME> style via stdout path.
 assets_resolve_pack() {
   local name="$1"
@@ -97,11 +97,6 @@ assets_resolve_pack() {
     printf '%s' "$cached"
     return 0
   fi
-  # Legacy: monorepo layout still present next to CLI.
-  if [[ "$name" == "core" && -d "${ROOT}/harness" ]]; then
-    printf '%s' "$ROOT"
-    return 0
-  fi
   return 1
 }
 
@@ -109,7 +104,6 @@ assets_resolve_pack() {
 assets_resolve_package_root() {
   local core
   if core="$(assets_resolve_pack core)"; then
-    # Cached/repo packs/core already has harness/; legacy ROOT also does.
     if [[ -d "${core}/harness" ]]; then
       printf '%s' "$core"
       return 0

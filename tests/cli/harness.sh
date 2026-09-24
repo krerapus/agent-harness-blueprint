@@ -9,6 +9,17 @@ BASE="${ROOT}/.tmp-harness-test"
 PASS=0
 FAIL=0
 
+ASSETS_ROOT="${BLUEPRINT_ASSETS_ROOT:-}"
+if [[ -z "$ASSETS_ROOT" || ! -d "${ASSETS_ROOT}/packs/core/harness" ]]; then
+  ASSETS_ROOT="$(cd "${ROOT}/.." && pwd)/assets-blueprint"
+fi
+if [[ ! -d "${ASSETS_ROOT}/packs/core/harness" ]]; then
+  echo "FAIL: core pack not found. Set BLUEPRINT_ASSETS_ROOT or place assets-blueprint as a sibling of this repo."
+  exit 1
+fi
+export BLUEPRINT_ASSETS_ROOT="$ASSETS_ROOT"
+CORE_PACK="${ASSETS_ROOT}/packs/core"
+
 assert_eq() {
   local label="$1" got="$2" want="$3"
   if [[ "$got" == "$want" ]]; then
@@ -438,11 +449,11 @@ assert_contains "context-recall name" "$(cat "$d/.cursor/skills/context-recall/S
 assert_contains "task-execution name" "$(cat "$d/.cursor/skills/task-execution/SKILL.md")" "name: task-execution"
 
 echo "== 23. renames.log exists for rebuild =="
-assert_file "renames log" "${ROOT}/harness/migrations/renames.log"
-assert_contains "log has memory rename" "$(cat "${ROOT}/harness/migrations/renames.log")" "memory-system-protocol"
-assert_contains "log has planning rename" "$(cat "${ROOT}/harness/migrations/renames.log")" "planning-execution-tracking"
-assert_contains "log has context-recall" "$(cat "${ROOT}/harness/migrations/renames.log")" "context-recall"
-assert_contains "log has task-execution" "$(cat "${ROOT}/harness/migrations/renames.log")" "task-execution"
+assert_file "renames log" "${CORE_PACK}/harness/migrations/renames.log"
+assert_contains "log has memory rename" "$(cat "${CORE_PACK}/harness/migrations/renames.log")" "memory-system-protocol"
+assert_contains "log has planning rename" "$(cat "${CORE_PACK}/harness/migrations/renames.log")" "planning-execution-tracking"
+assert_contains "log has context-recall" "$(cat "${CORE_PACK}/harness/migrations/renames.log")" "context-recall"
+assert_contains "log has task-execution" "$(cat "${CORE_PACK}/harness/migrations/renames.log")" "task-execution"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

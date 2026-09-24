@@ -18,7 +18,7 @@ Adopting projects run `init` → `assets install core` → `install` before prod
 | **[assets-blueprint](https://github.com/krerapus/assets-blueprint)** | Versioned packs (`core`, `prompts`, `memories`, `examples`) | Changing commands, rules, skills, blueprints, templates, prompts, examples |
 | **[homebrew-blueprint](https://github.com/krerapus/homebrew-blueprint)** | Homebrew Formula only | Updating Formula urls / sha256 (usually via automated PR after a CLI release) |
 
-In-tree `harness/`, `templates/`, `blueprints/`, `prompts/`, and `examples/` in this checkout are **legacy fallbacks** during the assets transition. Canonical edits belong in `assets-blueprint`.
+In-tree pack mirrors (`harness/`, `templates/`, `blueprints/`, `prompts/`, `examples/`) were **removed**. Canonical edits belong in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint). This repo keeps `builtin/` for offline CLI bootstrap only.
 
 ## Why this project exists
 
@@ -29,7 +29,7 @@ This package keeps the CLI and projection runtime canonical, loads harness conte
 ## Features
 
 - **Multi-runtime projection** — install into Cursor, Claude Code, Codex, or all (`--runtime`)
-- **Blueprint profiles** — `default`, `engineering`, `startup` (+ optional GitLab overlay) from the `core` pack
+- **Blueprint profiles** — `default`, `engineering`, `product` (+ optional GitLab overlay) from the `core` pack
 - **Managed consumer contract** — `HARNESS.md` + harness reference in `AGENTS.md` / `agents.md`
 - **Preserve-local sync** — refreshes managed files without clobbering memory or agent bodies
 - **Interactive TTY menu** — guided `init` / `install` / `sync` / `update` / `doctor` / `rm`
@@ -51,7 +51,7 @@ flowchart LR
   cliRepo -->|init_install_sync| user
 ```
 
-Canonical harness content comes from packs (or a legacy in-tree fallback). Tool runtimes are projections. `AGENTS.md` is the shared contract every agent reads.
+Canonical harness content comes from asset packs (`assets-blueprint` / cache). Tool runtimes are projections. `AGENTS.md` is the shared contract every agent reads.
 
 ```mermaid
 flowchart LR
@@ -167,7 +167,7 @@ Commands:
   doctor               Validate package + target install health
   assets …             list | install | update | doctor for content packs
 
-Blueprints:  default | engineering | startup
+Blueprints:  default | engineering | product
 
 Flags:
   --overlay gitlab     Install GitLab/glab command overlay
@@ -196,7 +196,8 @@ History is stored under `$XDG_DATA_HOME/blueprint/history.jsonl` (no secrets).
 blueprint install default --runtime all --target ~/code/my-app
 blueprint install default --runtime cursor --skill-mode merge --target ~/code/my-app
 blueprint install engineering --overlay gitlab --runtime all --target ~/code/my-app
-blueprint install startup --runtime cursor --target ~/code/my-app
+blueprint install product --runtime cursor --target ~/code/my-app
+blueprint switch engineering --target ~/code/my-app
 blueprint install default --runtime codex --target ~/code/my-app
 blueprint sync --target ~/code/my-app
 blueprint update --target ~/code/my-app
@@ -206,7 +207,7 @@ blueprint update --target ~/code/my-app
 |---|---|
 | `default` | Any repo — start/review, safety, core skills |
 | `engineering` | Commit/refactor/ADR workflows |
-| `startup` | PRD/ADR-heavy early product work |
+| `product` | PRD/ADR-heavy early product discovery (formerly `startup`) |
 
 After install: orient → `/start` → plan → execute → update memory → ship → learn. See [docs/harness-workflow.md](docs/harness-workflow.md).
 
@@ -280,7 +281,6 @@ More: [docs/setup.md](docs/setup.md) · [docs/how-it-works.md](docs/how-it-works
 
 - Richer `doctor` diagnostics for remote cache and overlay drift
 - Additional forge overlays beyond GitLab
-- Retire in-tree legacy `harness/` / `templates/` / `blueprints/` mirrors once packs are universal
 - More `good first issue` labeled tasks for community contributors
 
 Ideas: [GitHub Issues](https://github.com/krerapus/agent-harness-blueprint/issues).
@@ -295,7 +295,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Follow the [Code of Conduct](CODE_OF_CON
 |---|---|
 | Ownership / split | [architecture-split.md](docs/architecture-split.md) |
 | Architecture | [architecture.md](docs/architecture.md), [compatibility.md](docs/compatibility.md), [harness-ownership.md](docs/harness-ownership.md) |
-| Setup | [setup.md](docs/setup.md), [local-development.md](docs/local-development.md), [adoption-and-lineage.md](docs/adoption-and-lineage.md) |
+| Setup | [setup.md](docs/setup.md), [local-development.md](docs/local-development.md), [adoption-and-lineage.md](docs/adoption-and-lineage.md), [profiles.md](docs/profiles.md) |
 | How it works | [how-it-works.md](docs/how-it-works.md), [skills.md](docs/skills.md), [rules.md](docs/rules.md), [slash-commands.md](docs/slash-commands.md) |
 | Workflow | [harness-workflow.md](docs/harness-workflow.md), [quick-start.md](docs/quick-start.md), [memory-and-planning.md](docs/memory-and-planning.md) |
 | Release | [release.md](docs/release.md), [distribution.md](docs/distribution.md), [homebrew.md](docs/homebrew.md) |
@@ -313,13 +313,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Follow the [Code of Conduct](CODE_OF_CON
 ├── docs/                # CLI + projection + release docs
 ├── tests/cli/           # CLI smoke tests
 ├── scripts/             # package-release, verify, bump-homebrew-formula
-├── VERSION              # CLI semver only
-├── harness/             # LEGACY fallback — prefer assets-blueprint packs/core
-├── templates/           # LEGACY fallback — prefer packs/core
-├── blueprints/          # LEGACY fallback — prefer packs/core
-├── prompts/             # LEGACY fallback — prefer packs/prompts
-└── examples/            # LEGACY fallback — prefer packs/examples
+└── VERSION              # CLI semver only
 ```
+
+Pack content (`harness/`, `templates/`, `blueprints/`, …) lives in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint).
 
 ## License
 

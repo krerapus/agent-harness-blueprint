@@ -2,7 +2,7 @@
 
 `/start` keeps **planning**, **telemetry**, **rationale**, **draft learning**, and **safety memory** in separate files in the **adopting project** so agents do not treat chat logs as the system of record.
 
-These files are **not** part of the CLI package. Templates live in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) under `packs/core/templates/memory/`, `packs/memories/`, and `packs/core/harness/skills/*/templates.md` (legacy mirrors may exist in this checkout).
+These files are **not** part of the CLI package. Templates live in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) under `packs/core/templates/memory/`, `packs/memories/`, and `packs/core/harness/skills/*/templates.md`.
 
 ## Consumer repo-root files
 
@@ -18,7 +18,7 @@ These files are **not** part of the CLI package. Templates live in [`assets-blue
 
 ## Related skills
 
-- **[context-recall](../harness/skills/context-recall/SKILL.md)** explains consolidation, read order, and why each layer exists.
-- **[task-execution](../harness/skills/task-execution/SKILL.md)** governs checklist updates plus `DECISIONS` / `RUN_LOG` hygiene after each execution batch.
+- **[context-recall](https://github.com/krerapus/assets-blueprint/blob/master/packs/core/harness/skills/context-recall/SKILL.md)** explains consolidation, read order, and why each layer exists.
+- **[task-execution](https://github.com/krerapus/assets-blueprint/blob/master/packs/core/harness/skills/task-execution/SKILL.md)** governs checklist updates plus `DECISIONS` / `RUN_LOG` hygiene after each execution batch.
 
 Together they turn “what happened?” into auditable artifacts instead of long chat scrollback.

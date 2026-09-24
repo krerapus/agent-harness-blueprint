@@ -6,21 +6,40 @@ renames_log_path() {
 }
 
 # Default package skills projected into consumer runtimes.
+# Prefer live pack inventory under PACKAGE_ROOT; fall back to a known baseline.
 package_skill_names() {
+  local d="${PACKAGE_ROOT}/harness/skills"
+  if [[ -d "$d" ]]; then
+    local s
+    for s in "$d"/*/; do
+      [[ -d "$s" ]] || continue
+      basename "${s%/}"
+    done | LC_ALL=C sort -u
+    return 0
+  fi
+  # Offline/builtin fallback only — prefer live pack inventory above.
   printf '%s\n' \
+    build-prototype \
     context-recall \
-    task-execution \
+    design-modules \
+    diagnose-bugs \
     docs-style \
-    skill-creator \
-    refactor-code \
+    generate-test-cases \
     i-have-adhd \
     ponytail \
-    ponytail-review \
     ponytail-audit \
     ponytail-debt \
     ponytail-gain \
     ponytail-help \
-    generate-test-cases \
+    ponytail-review \
+    practice-tdd \
+    refactor-code \
+    research-topic \
+    resolve-merge-conflicts \
+    review-diff \
+    skill-creator \
+    task-execution \
+    teach-topic \
     update-api-docs
 }
 
