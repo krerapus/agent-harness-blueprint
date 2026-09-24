@@ -29,7 +29,7 @@ Standards for contributors working **on this CLI package**. Unrelated to consume
 | `/commit` (no JIRA) | [contributor/commands/commit.md](contributor/commands/commit.md) |
 | `/pr` + release notes | [contributor/commands/pr.md](contributor/commands/pr.md) |
 | Always-on standards | [contributor/rules/contributor-standards.mdc](contributor/rules/contributor-standards.mdc) |
-| `skill-creator` | Prefer `assets-blueprint` `packs/core/harness/skills/skill-creator/` (legacy: [harness/skills/skill-creator/SKILL.md](harness/skills/skill-creator/SKILL.md)) |
+| `skill-creator` | [`assets-blueprint` skill-creator](https://github.com/krerapus/assets-blueprint/tree/master/packs/core/harness/skills/skill-creator) |
 
 `./blueprint install-contributor --runtime all` projects those into gitignored local runtimes (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
@@ -41,7 +41,7 @@ Standards for contributors working **on this CLI package**. Unrelated to consume
 2. [docs/architecture-split.md](docs/architecture-split.md) — confirm which repo owns the change
 3. `VERSION` for CLI semver (**only** place to bump the CLI release number)
 4. `blueprint` / `lib/blueprint/` / `builtin/` / `contributor/` for CLI work
-5. For harness content: open `assets-blueprint` packs (do not diverge solely in legacy `harness/` here)
+5. For harness content: open `assets-blueprint` packs
 6. `docs/` for CLI/adoption notes
 
 ## Don't
@@ -50,4 +50,4 @@ Standards for contributors working **on this CLI package**. Unrelated to consume
 - Point product repos at this package-root `AGENTS.md` as their runtime contract
 - Treat optional overlays (e.g. GitLab) as universal defaults
 - Project `contributor/` into consumer/target installs
-- Edit pack content only in this repo’s legacy trees when the change belongs in `assets-blueprint`
+- Edit pack content in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint), not by recreating pack mirrors here

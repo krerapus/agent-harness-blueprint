@@ -180,8 +180,8 @@ refresh_package_paths() {
   MANIFEST="${PACKAGE_ROOT}/manifest.yaml"
 }
 
-# Resolve PACKAGE_ROOT from Asset Manager (assets-blueprint / cache / legacy).
-# CLI VERSION stays at ROOT/VERSION; asset content comes from the core pack.
+# Resolve PACKAGE_ROOT from Asset Manager (assets-blueprint sibling / env / XDG cache).
+# CLI VERSION stays at ROOT/VERSION; pack content comes from the core pack only.
 bp_bind_assets_package_root() {
   local resolved=""
   if resolved="$(assets_resolve_package_root)"; then
@@ -277,7 +277,7 @@ bp_resolve_source_for_op() {
   BP_HEADER_SOURCE="$source"
   emit_phase_start "Validating source repository"
   if repo_is_fetchable "$source"; then
-    # Legacy: whole-repo git URL cache (pre-assets split). Prefer assets when possible.
+    # Optional: resolve a git URL to a local checkout/cache (CLI / docs identity).
     if ! repo_resolve_root "$source" "$ROOT"; then
       events_finish_op "failed"
       render_summary_failure
@@ -287,10 +287,9 @@ bp_resolve_source_for_op() {
       bp_clear_trap
       exit 1
     fi
-    refresh_package_paths
-  else
-    bp_require_assets
   fi
+  # Pack content always comes from assets-blueprint / cache (no in-tree harness/).
+  bp_require_assets
   emit_phase_complete "Validating source repository"
 }
 
@@ -1275,8 +1274,8 @@ install_contributor_runtime() {
 
   mkdir -p "${base}/commands" "${base}/rules" "${base}/skills"
 
-  copy_file "${PACKAGE_ROOT}/contributor/commands/commit.md" "${base}/commands/commit.md"
-  copy_file "${PACKAGE_ROOT}/contributor/commands/pr.md" "${base}/commands/pr.md"
+  copy_file "${ROOT}/contributor/commands/commit.md" "${base}/commands/commit.md"
+  copy_file "${ROOT}/contributor/commands/pr.md" "${base}/commands/pr.md"
 
   if runtime_projects_md_rules "$runtime"; then
     dest_name="contributor-standards.md"
@@ -1284,7 +1283,7 @@ install_contributor_runtime() {
     dest_name="contributor-standards.mdc"
   fi
   copy_file \
-    "${PACKAGE_ROOT}/contributor/rules/contributor-standards.mdc" \
+    "${ROOT}/contributor/rules/contributor-standards.mdc" \
     "${base}/rules/${dest_name}"
 
   install_contributor_skill_into "${base}/skills"
@@ -1575,11 +1574,10 @@ cmd_install_contributor() {
     die "install-contributor only runs against the package root (got: $abs_dest)"
   fi
 
-  PACKAGE_ROOT="$ROOT"
-  refresh_package_paths
-  need_file "${PACKAGE_ROOT}/contributor/commands/commit.md"
-  need_file "${PACKAGE_ROOT}/contributor/commands/pr.md"
-  need_file "${PACKAGE_ROOT}/contributor/rules/contributor-standards.mdc"
+  need_file "${ROOT}/contributor/commands/commit.md"
+  need_file "${ROOT}/contributor/commands/pr.md"
+  need_file "${ROOT}/contributor/rules/contributor-standards.mdc"
+  bp_require_assets
   need_file "${PACKAGE_ROOT}/harness/skills/skill-creator/SKILL.md"
 
   select_runtime || die "cancelled (no runtime selected)"
@@ -2080,8 +2078,8 @@ cmd_del() {
     exit 1
   fi
 
-  PACKAGE_ROOT="$ROOT"
-  refresh_package_paths
+  # Pack inventory (skills + renames.log) comes from assets-blueprint / cache.
+  bp_require_assets
 
   local state="${dest_root}/${STATE_FILE}"
   local memory_files=(
@@ -2371,7 +2369,7 @@ cmd_doctor() {
       fi
     done
     ui_section "Entrypoints"
-    for f in AGENTS.md CLAUDE.md templates/entrypoints/HARNESS.md; do
+    for f in AGENTS.md CLAUDE.md; do
       if [[ -e "${dest_root}/$f" ]]; then
         ui_ok "$f"
       else
@@ -2379,6 +2377,15 @@ cmd_doctor() {
         errors=$((errors + 1))
       fi
     done
+    # HARNESS.md template lives in the assets pack (or offline builtin/), not the CLI tree.
+    if [[ -n "${PACKAGE_ROOT:-}" && -f "${PACKAGE_ROOT}/templates/entrypoints/HARNESS.md" ]]; then
+      ui_ok "templates/entrypoints/HARNESS.md (assets)"
+    elif [[ -f "${ROOT}/builtin/templates/entrypoints/HARNESS.md" ]]; then
+      ui_ok "templates/entrypoints/HARNESS.md (builtin)"
+    else
+      ui_fail "missing templates/entrypoints/HARNESS.md (assets or builtin)"
+      errors=$((errors + 1))
+    fi
     if [[ -f "${ROOT}/lib/blueprint/harness.sh" ]]; then
       ui_ok "lib/blueprint/harness.sh"
     else

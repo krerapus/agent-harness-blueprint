@@ -60,21 +60,24 @@ Also: `catalog.yaml`, `scripts/package-pack.sh`, pack release workflow / tags (`
 
 Never vendor CLI `lib/`, packs, or source into the tap. Artifacts come from this repo’s GitHub Releases.
 
-## Legacy copies still in this checkout (transition)
+## Legacy pack mirrors (removed)
 
-In-tree `harness/`, `templates/`, `blueprints/`, `prompts/`, and `examples/` may still exist as a **fallback** when no assets checkout/cache is available (`assets_resolve_pack` → legacy CLI tree).
+In-tree `harness/`, `templates/`, `blueprints/`, `prompts/`, and `examples/` were **removed** from this repo. Pack content resolves only from:
+
+1. `BLUEPRINT_ASSETS_ROOT` or sibling `../assets-blueprint`
+2. XDG pack cache (`blueprint assets install core`)
 
 | Rule | Detail |
 |------|--------|
 | Canonical edit location | [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) packs |
-| Do not treat legacy trees as SoT | Prefer packs; avoid divergent edits only in this repo |
 | Homebrew / Release users | Must run `blueprint assets install core` (and other packs as needed) |
 | Local pack dev | Sibling `../assets-blueprint` or `BLUEPRINT_ASSETS_ROOT` |
+| Offline `init` only | `builtin/` templates shipped with the CLI |
 
 ## Runtime flow
 
 ```text
-CLI → Asset Manager → packs (sibling checkout / XDG cache / legacy tree)
+CLI → Asset Manager → packs (sibling checkout / XDG cache)
                  ↓
             Projector → consumer .cursor / .claude / .agents
 ```

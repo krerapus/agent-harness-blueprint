@@ -1,6 +1,6 @@
 # Quick start (`/start` ritual)
 
-`/start` aligns planning, telemetry, and scratchpads in the **consuming project** before heavy implementation. Canonical playbook: [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) `packs/core/harness/commands/start.md` (legacy mirror: [harness/commands/start.md](../harness/commands/start.md)).
+`/start` aligns planning, telemetry, and scratchpads in the **consuming project** before heavy implementation. Canonical playbook: [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) `packs/core/harness/commands/start.md`.
 
 Canonical pack sources: `packs/core/harness/` and `packs/core/templates/`. After `blueprint assets install core` and `blueprint install --runtime …`, the same assets appear under the consumer's `.cursor/`, `.claude/`, and/or `.agents/`.
 

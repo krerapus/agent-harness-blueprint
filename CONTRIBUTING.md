@@ -39,7 +39,7 @@ Full local/dev workflow (sibling packs, isolated XDG, throwaway consumers, test 
 
 ## How this repo works
 
-This repository ships the `blueprint` CLI, builtin bootstrap, contributor tooling, and release packaging. It loads harness content from asset packs (or a legacy in-tree fallback), then projects into consumer `.cursor/` / `.claude/` / `.agents/` trees.
+This repository ships the `blueprint` CLI, builtin bootstrap, contributor tooling, and release packaging. It loads harness content from asset packs (`assets-blueprint` sibling / `BLUEPRINT_ASSETS_ROOT` / XDG cache), then projects into consumer `.cursor/` / `.claude/` / `.agents/` trees.
 
 | Change type | Repo |
 |-------------|------|
@@ -91,7 +91,7 @@ Maintainers may ask for docs updates when CLI or projection behavior changes.
 ## How to update source
 
 1. **CLI / modules:** edit `blueprint` and `lib/blueprint/`; keep helpers small and composable.
-2. **Consumer harness content:** edit packs in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint). Do not treat in-tree `harness/`, `templates/`, `blueprints/`, or `prompts/` as the source of truth (legacy fallback only).
+2. **Consumer harness content:** edit packs in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint). Do not add pack mirrors under this repo.
 3. **Offline bootstrap:** change entrypoints/memory under `builtin/` when the change must ship inside the CLI archive without packs.
 4. **Contributor-only playbooks:** edit `contributor/` (not projected by consumer `install`).
 5. **Semver:** bump only [`VERSION`](VERSION) for CLI releases; update [CHANGELOG.md](CHANGELOG.md). Pack versions bump in `assets-blueprint`.
@@ -117,7 +117,7 @@ This writes gitignored `.cursor/` / `.claude/` / `.agents/` plus `.agent-bluepri
 | Command | `/commit` | [`contributor/commands/commit.md`](contributor/commands/commit.md) |
 | Command | `/pr` | [`contributor/commands/pr.md`](contributor/commands/pr.md) |
 | Rule | contributor-standards | [`contributor/rules/contributor-standards.mdc`](contributor/rules/contributor-standards.mdc) |
-| Skill | `skill-creator` | Prefer assets `packs/core/harness/skills/skill-creator/` (legacy: [`harness/skills/skill-creator/SKILL.md`](harness/skills/skill-creator/SKILL.md)) |
+| Skill | `skill-creator` | [`assets-blueprint` packs/core/harness/skills/skill-creator/](https://github.com/krerapus/assets-blueprint/tree/master/packs/core/harness/skills/skill-creator) |
 
 Before adding or substantially rewriting a consumer skill, use `/skill-creator` in the **assets** repo and follow the [Skill naming standard](https://github.com/krerapus/assets-blueprint/blob/master/docs/standards/skill-naming.md). Inventory: [assets docs/skills.md](https://github.com/krerapus/assets-blueprint/blob/master/docs/skills.md).
 

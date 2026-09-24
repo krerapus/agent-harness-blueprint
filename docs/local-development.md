@@ -41,9 +41,8 @@ When the CLI needs `core` (or another pack), it resolves in this order:
 1. `BLUEPRINT_ASSETS_ROOT` (if set and contains `packs/`)
 2. Sibling `../assets-blueprint` (directory next to this repo with `packs/core`)
 3. Cached pack under `$XDG_CACHE_HOME/blueprint/assets/<pack>/<ver>/`
-4. Legacy in-tree `harness/` in this repo (transition fallback only)
 
-So “dev mode” usually means: **edit packs in the sibling repo; run `./blueprint` from the CLI checkout.**
+There is **no** in-tree `harness/` fallback in this repo. So “dev mode” usually means: **edit packs in the sibling repo; run `./blueprint` from the CLI checkout.**
 
 | Goal | What to do |
 |------|------------|
@@ -163,7 +162,7 @@ Run from the **CLI package root**:
 | `./tests/cli/harness.sh` | `HARNESS.md` / agent-file ownership for init/update |
 | `./tests/cli/package-release.sh` | `package-release.sh`, archive verify, formula bump dry-run |
 
-Smoke and harness tests set their own temporary `XDG_*` and `BLUEPRINT_TARGETS_FILE` under `.tmp-*` (gitignored). They expect a resolvable `core` pack (sibling, cache, or legacy tree).
+Smoke and harness tests set their own temporary `XDG_*` and `BLUEPRINT_TARGETS_FILE` under `.tmp-*` (gitignored). They require a resolvable `core` pack (sibling `assets-blueprint` or `BLUEPRINT_ASSETS_ROOT`).
 
 ```bash
 ./tests/cli/smoke.sh

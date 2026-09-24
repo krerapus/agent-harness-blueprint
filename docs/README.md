@@ -4,7 +4,7 @@ Narrative docs for the Blueprint **CLI + runtime** (`agent-harness-blueprint`). 
 
 Sibling repos: [assets-blueprint](https://github.com/krerapus/assets-blueprint) (packs) · [homebrew-blueprint](https://github.com/krerapus/homebrew-blueprint) (Formula).
 
-**Ownership rule:** CLI / projection / release docs stay here. Pack content inventories describe material whose **canonical home** is `assets-blueprint` (legacy mirrors may still exist in this checkout).
+**Ownership rule:** CLI / projection / release docs stay here. Pack content inventories describe material whose **canonical home** is `assets-blueprint` (no in-tree pack mirrors in this repo).
 
 ## By category
 

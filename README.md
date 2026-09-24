@@ -18,7 +18,7 @@ Adopting projects run `init` → `assets install core` → `install` before prod
 | **[assets-blueprint](https://github.com/krerapus/assets-blueprint)** | Versioned packs (`core`, `prompts`, `memories`, `examples`) | Changing commands, rules, skills, blueprints, templates, prompts, examples |
 | **[homebrew-blueprint](https://github.com/krerapus/homebrew-blueprint)** | Homebrew Formula only | Updating Formula urls / sha256 (usually via automated PR after a CLI release) |
 
-In-tree `harness/`, `templates/`, `blueprints/`, `prompts/`, and `examples/` in this checkout are **legacy fallbacks** during the assets transition. Canonical edits belong in `assets-blueprint`.
+In-tree pack mirrors (`harness/`, `templates/`, `blueprints/`, `prompts/`, `examples/`) were **removed**. Canonical edits belong in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint). This repo keeps `builtin/` for offline CLI bootstrap only.
 
 ## Why this project exists
 
@@ -51,7 +51,7 @@ flowchart LR
   cliRepo -->|init_install_sync| user
 ```
 
-Canonical harness content comes from packs (or a legacy in-tree fallback). Tool runtimes are projections. `AGENTS.md` is the shared contract every agent reads.
+Canonical harness content comes from asset packs (`assets-blueprint` / cache). Tool runtimes are projections. `AGENTS.md` is the shared contract every agent reads.
 
 ```mermaid
 flowchart LR
@@ -281,7 +281,6 @@ More: [docs/setup.md](docs/setup.md) · [docs/how-it-works.md](docs/how-it-works
 
 - Richer `doctor` diagnostics for remote cache and overlay drift
 - Additional forge overlays beyond GitLab
-- Retire in-tree legacy `harness/` / `templates/` / `blueprints/` mirrors once packs are universal
 - More `good first issue` labeled tasks for community contributors
 
 Ideas: [GitHub Issues](https://github.com/krerapus/agent-harness-blueprint/issues).
@@ -296,7 +295,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Follow the [Code of Conduct](CODE_OF_CON
 |---|---|
 | Ownership / split | [architecture-split.md](docs/architecture-split.md) |
 | Architecture | [architecture.md](docs/architecture.md), [compatibility.md](docs/compatibility.md), [harness-ownership.md](docs/harness-ownership.md) |
-| Setup | [setup.md](docs/setup.md), [local-development.md](docs/local-development.md), [adoption-and-lineage.md](docs/adoption-and-lineage.md) |
+| Setup | [setup.md](docs/setup.md), [local-development.md](docs/local-development.md), [adoption-and-lineage.md](docs/adoption-and-lineage.md), [profiles.md](docs/profiles.md) |
 | How it works | [how-it-works.md](docs/how-it-works.md), [skills.md](docs/skills.md), [rules.md](docs/rules.md), [slash-commands.md](docs/slash-commands.md) |
 | Workflow | [harness-workflow.md](docs/harness-workflow.md), [quick-start.md](docs/quick-start.md), [memory-and-planning.md](docs/memory-and-planning.md) |
 | Release | [release.md](docs/release.md), [distribution.md](docs/distribution.md), [homebrew.md](docs/homebrew.md) |
@@ -314,13 +313,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Follow the [Code of Conduct](CODE_OF_CON
 ├── docs/                # CLI + projection + release docs
 ├── tests/cli/           # CLI smoke tests
 ├── scripts/             # package-release, verify, bump-homebrew-formula
-├── VERSION              # CLI semver only
-├── harness/             # LEGACY fallback — prefer assets-blueprint packs/core
-├── templates/           # LEGACY fallback — prefer packs/core
-├── blueprints/          # LEGACY fallback — prefer packs/core
-├── prompts/             # LEGACY fallback — prefer packs/prompts
-└── examples/            # LEGACY fallback — prefer packs/examples
+└── VERSION              # CLI semver only
 ```
+
+Pack content (`harness/`, `templates/`, `blueprints/`, …) lives in [`assets-blueprint`](https://github.com/krerapus/assets-blueprint).
 
 ## License
 

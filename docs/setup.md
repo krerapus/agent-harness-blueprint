@@ -20,7 +20,7 @@ ln -s /path/to/agent-harness-blueprint/blueprint /usr/local/bin/blueprint   # op
 blueprint assets install core
 ```
 
-`assets install core` is required for Homebrew/Release installs (CLI archives do not include pack content). With a full git checkout that still has legacy `harness/`, the CLI may fall back to that tree if no pack is resolved — prefer packs. See [architecture-split.md](architecture-split.md).
+`assets install core` is required for Homebrew/Release installs (CLI archives do not include pack content). Local CLI checkouts resolve packs from a sibling `assets-blueprint` or `BLUEPRINT_ASSETS_ROOT`. See [architecture-split.md](architecture-split.md).
 
 ## Flow
 
