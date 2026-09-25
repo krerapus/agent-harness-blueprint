@@ -2,21 +2,24 @@
 
 Blueprint CLI releases are owned by **`krerapus/agent-harness-blueprint`**.
 
+**How to publish:** human-triggered Actions only — see **[release-workflow.md](release-workflow.md)** (step-by-step for CLI + assets + Formula).
+
+Pushing a git tag does **not** start CI. The **CLI Release** workflow creates `vX.Y.Z` from `./VERSION` when you run it.
+
 The Homebrew tap only consumes GitHub Release artifacts. It is **not** the source of truth.
 
 ```text
-Developer
-   │
-   ▼
-git tag vX.Y.Z  (must match ./VERSION)
+Human → Actions → CLI Release (confirm VERSION)
    │
    ▼
 GitHub Actions  (.github/workflows/cli-release.yml)
    │
-   ├─ validate tag ↔ VERSION
-   ├─ run tests/cli/smoke.sh
+   ├─ confirm input ↔ ./VERSION
+   ├─ checkout assets-blueprint (smoke)
+   ├─ tests/cli/smoke.sh
    ├─ scripts/package-release.sh
    ├─ scripts/verify-release-archive.sh
+   ├─ create tag vVERSION (if missing)
    ├─ checksums.txt (real SHA256)
    ▼
 GitHub Release vX.Y.Z
@@ -27,9 +30,9 @@ GitHub Release vX.Y.Z
    │  checksums.txt
    ▼
 Homebrew tap (krerapus/homebrew-blueprint)
-   │  Formula/blueprint.rb  ← urls + sha256
+   │  Formula/blueprint.rb  ← urls + sha256 (PR auto-merged)
    ▼
-brew install blueprint
+brew install / upgrade blueprint
 ```
 
 ## Ownership
@@ -37,23 +40,25 @@ brew install blueprint
 | Owner | Owns |
 |-------|------|
 | `agent-harness-blueprint` | source, `VERSION`, build/package, GitHub Release assets |
+| `assets-blueprint` | pack versions, pack Releases (`core-v*`, …) — no Formula rewrite |
 | `homebrew-blueprint` | Formula metadata only (urls, sha256, caveats, test) |
-| GitHub Actions | test, package, checksums, release upload, optional formula PR |
+| GitHub Actions | human-triggered release + formula bump |
 
 ## Versioning
 
 - Single source of truth: `./VERSION` in this repo
-- Release tags: `vMAJOR.MINOR.PATCH` (example: `v1.4.0`)
-- Tag version **must** equal `VERSION` or CI fails
+- Release tags: `vMAJOR.MINOR.PATCH` (example: `v1.5.0`)
+- Workflow **confirm** input **must** equal `VERSION` or CI fails
 - `blueprint --version` reads `VERSION` next to the installed script
 
 ```bash
-# bump VERSION in a PR, merge, then:
-git tag v1.4.0
-git push origin v1.4.0
+# bump VERSION in a PR, merge to master, then:
+# Actions → CLI Release → confirm=<VERSION> → Run workflow
+# or:
+gh workflow run "CLI Release" -f confirm=1.5.0 -f bump_formula=true -f dry_run=false
 ```
 
-Do **not** create a tag whose version does not match `./VERSION`.
+Do **not** invent a tag whose version does not match `./VERSION`.
 
 ## Build matrix / artifacts
 
@@ -80,6 +85,7 @@ blueprint/
 ```
 
 Platform archives are content-identical (Bash CLI); filenames differ so Homebrew can select by OS/arch. Checksums are deterministic.
+
 ## Local packaging
 
 ```bash
@@ -102,12 +108,12 @@ Placeholder `0000…0000` checksums are rejected by packaging and formula bump s
 
 CI fails if:
 
-- tag does not match `v*.*.*`
-- `VERSION` ≠ tag version
-- smoke tests fail
+- confirm input ≠ `VERSION`
+- smoke tests fail (needs assets checkout)
 - any required archive is missing
 - checksum missing / placeholder
 - archive fails `verify-release-archive.sh`
 - release upload succeeds but remote assets are incomplete
+- Formula bump enabled but `HOMEBREW_TAP_TOKEN` missing
 
-See also: [distribution.md](distribution.md), [homebrew.md](homebrew.md).
+See also: [release-workflow.md](release-workflow.md), [distribution.md](distribution.md), [homebrew.md](homebrew.md).

@@ -42,23 +42,26 @@ blueprint assets list
 - Expose `bin/blueprint` via `write_exec_script`
 - Keep asset commands working (`assets install/list/doctor`)
 
-## Automatic formula updates
+## Formula updates (from CLI Release)
 
-After a successful CLI release, `.github/workflows/cli-release.yml` job `bump-formula`:
+Formula bumps are **not** started by tag push. After you manually run **CLI Release** with `bump_formula=true`, `.github/workflows/cli-release.yml` job `bump-formula`:
 
 1. Downloads release artifacts / checksums
 2. Runs `scripts/bump-homebrew-formula.sh`
 3. Opens a PR on `krerapus/homebrew-blueprint`
+4. **Auto-merges** that PR (squash) when the token can merge
+
+Operator steps and dry-run: **[release-workflow.md](release-workflow.md)**.
 
 ### Required secret
 
 | Secret | Repo | Permissions |
 |--------|------|-------------|
-| `HOMEBREW_TAP_TOKEN` | `agent-harness-blueprint` | Fine-grained or classic PAT that can push to `krerapus/homebrew-blueprint` and open PRs |
+| `HOMEBREW_TAP_TOKEN` | `agent-harness-blueprint` | Fine-grained or classic PAT that can push to `krerapus/homebrew-blueprint`, open PRs, and merge |
 
-Least privilege: contents read/write on the tap repo only. Do **not** commit tokens.
+Least privilege: contents write + PR merge on the tap repo only. Do **not** commit tokens.
 
-If the secret is missing, the release still publishes; formula bump is skipped with a warning. Update manually:
+If Formula bump is enabled and the secret is missing, the **CLI Release fails** on the bump job (GitHub Release may already exist). Update manually:
 
 ```bash
 ./scripts/package-release.sh

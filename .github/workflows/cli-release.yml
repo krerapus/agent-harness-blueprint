@@ -1,17 +1,32 @@
 name: CLI Release
 
-# Source of truth: this repository.
-# Tag vX.Y.Z → test → package → GitHub Release → optional Homebrew formula PR.
+# Human-triggered only (Actions → CLI Release → Run workflow).
+# Does not run on tag push. Creates/updates tag vVERSION from ./VERSION,
+# packages archives, publishes GitHub Release, bumps Homebrew Formula PR,
+# and auto-merges that PR when HOMEBREW_TAP_TOKEN is set.
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type the VERSION from ./VERSION to confirm (e.g. 1.5.0)"
+        required: true
+        type: string
+      bump_formula:
+        description: "Bump homebrew-blueprint Formula and auto-merge PR"
+        required: true
+        type: boolean
+        default: true
+      dry_run:
+        description: "Package + verify only (skip tag, release, formula)"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
-  group: cli-release-${{ github.ref }}
+  group: cli-release
   cancel-in-progress: false
 
 jobs:
@@ -20,27 +35,43 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
+      dry_run: ${{ steps.meta.outputs.dry_run }}
+      bump_formula: ${{ steps.meta.outputs.bump_formula }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate tag matches VERSION
+      - name: Resolve version from VERSION file
         id: meta
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.]+)?$ ]] \
-            || { echo "error: tag must match vMAJOR.MINOR.PATCH (got $TAG)" >&2; exit 1; }
-          VER="${TAG#v}"
           FILE_VER="$(tr -d '[:space:]' < VERSION)"
-          if [[ "$FILE_VER" != "$VER" ]]; then
-            echo "error: VERSION file ($FILE_VER) does not match tag ($TAG)" >&2
+          CONFIRM="${{ inputs.confirm }}"
+          if [[ "$CONFIRM" != "$FILE_VER" ]]; then
+            echo "error: confirm input '$CONFIRM' does not match VERSION file '$FILE_VER'" >&2
             exit 1
           fi
-          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          TAG="v${FILE_VER}"
+          echo "version=${FILE_VER}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
+          echo "bump_formula=${{ inputs.bump_formula }}" >> "$GITHUB_OUTPUT"
           echo "Validated release ${TAG} (VERSION=${FILE_VER})"
 
+      - name: Checkout assets-blueprint for smoke tests
+        uses: actions/checkout@v4
+        with:
+          repository: krerapus/assets-blueprint
+          path: assets-blueprint
+          # Pack SoT for smoke; pin to master (published packs optional later).
+          ref: master
+
       - name: Run smoke tests
+        env:
+          BLUEPRINT_ASSETS_ROOT: ${{ github.workspace }}/assets-blueprint
+          CI: "1"
+          NO_COLOR: "1"
         run: |
           chmod +x blueprint tests/cli/smoke.sh
           ./tests/cli/smoke.sh
@@ -86,9 +117,13 @@ jobs:
 
   release:
     needs: [validate, package]
+    if: needs.validate.outputs.dry_run != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -99,6 +134,21 @@ jobs:
         run: |
           chmod +x scripts/verify-release-archive.sh
           ./scripts/verify-release-archive.sh --all dist
+
+      - name: Ensure git tag exists
+        env:
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+          else
+            git config user.name "blueprint-release-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Blueprint CLI ${TAG#v}"
+            git push origin "$TAG"
+            echo "Created and pushed tag $TAG"
+          fi
 
       - name: Create or update GitHub Release
         env:
@@ -129,7 +179,6 @@ jobs:
               --verify-tag
           fi
 
-          # Fail if any expected asset is still missing on the release.
           remote="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           for want in \
             "blueprint_${VER}_darwin_arm64.tar.gz" \
@@ -144,9 +193,11 @@ jobs:
 
   bump-formula:
     needs: [validate, release]
+    if: >-
+      needs.validate.outputs.dry_run != 'true'
+      && needs.validate.outputs.bump_formula == 'true'
+      && github.repository == 'krerapus/agent-harness-blueprint'
     runs-on: ubuntu-latest
-    # Skip gracefully when tap token is not configured (forks / first setup).
-    if: ${{ github.repository == 'krerapus/agent-harness-blueprint' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -155,20 +206,18 @@ jobs:
           name: blueprint-release-${{ needs.validate.outputs.version }}
           path: dist
 
-      - name: Check HOMEBREW_TAP_TOKEN
+      - name: Require HOMEBREW_TAP_TOKEN
         id: token
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::HOMEBREW_TAP_TOKEN not set — skipping formula bump. See docs/homebrew.md"
-          else
-            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "::error::HOMEBREW_TAP_TOKEN not set — cannot bump Formula. See docs/homebrew.md"
+            exit 1
           fi
+          echo "present=true" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Homebrew tap
-        if: steps.token.outputs.present == 'true'
         uses: actions/checkout@v4
         with:
           repository: krerapus/homebrew-blueprint
@@ -176,7 +225,6 @@ jobs:
           path: homebrew-blueprint
 
       - name: Bump Formula urls and sha256
-        if: steps.token.outputs.present == 'true'
         run: |
           chmod +x scripts/bump-homebrew-formula.sh
           ./scripts/bump-homebrew-formula.sh \
@@ -188,17 +236,14 @@ jobs:
             echo "formula still has placeholder sha256" >&2
             exit 1
           fi
-          # Sanity: every url must point at this tag.
           VER="${{ needs.validate.outputs.version }}"
           matches="$(grep -c "releases/download/v${VER}/" homebrew-blueprint/Formula/blueprint.rb || true)"
           test "$matches" -ge 4
 
       - name: Validate Formula syntax
-        if: steps.token.outputs.present == 'true'
         run: ruby -c homebrew-blueprint/Formula/blueprint.rb
 
-      - name: Open PR on tap
-        if: steps.token.outputs.present == 'true'
+      - name: Open PR and auto-merge on tap
         working-directory: homebrew-blueprint
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -218,9 +263,10 @@ jobs:
           fi
           git commit -m "chore: bump blueprint to ${VER}"
           git push -u origin "$BRANCH" --force
+
           BODY_FILE="$(mktemp)"
           cat > "$BODY_FILE" <<EOF
-          Automated formula bump from agent-harness-blueprint \`${TAG}\`.
+          Automated formula bump from agent-harness-blueprint \`${TAG}\` (manual CLI Release workflow).
 
           ## Summary
           - version \`${VER}\`
@@ -228,16 +274,22 @@ jobs:
           - Real SHA256 from release checksums.txt
 
           ## Test plan
-          - [ ] brew uninstall blueprint (ignore errors)
-          - [ ] brew tap krerapus/blueprint https://github.com/krerapus/homebrew-blueprint
-          - [ ] brew install blueprint
+          - [ ] brew update && brew upgrade krerapus/blueprint/blueprint
           - [ ] blueprint --version equals ${VER}
-          - [ ] blueprint assets doctor --offline
+          - [ ] blueprint assets install core && blueprint assets doctor
           EOF
-          # Strip leading indentation from heredoc lines
           sed -i.bak 's/^          //' "$BODY_FILE" && rm -f "${BODY_FILE}.bak"
+
           if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
             gh pr edit "$BRANCH" --title "chore: bump blueprint to ${VER}" --body-file "$BODY_FILE"
           else
-            gh pr create --title "chore: bump blueprint to ${VER}" --body-file "$BODY_FILE"
+            gh pr create --title "chore: bump blueprint to ${VER}" --body-file "$BODY_FILE" --base master
+          fi
+
+          # Auto-merge when checks allow; falls back to immediate merge if no required checks.
+          if gh pr merge "$BRANCH" --auto --squash --delete-branch; then
+            echo "Enabled auto-merge (squash) for $BRANCH"
+          else
+            echo "Auto-merge unavailable — attempting immediate squash merge"
+            gh pr merge "$BRANCH" --squash --delete-branch
           fi

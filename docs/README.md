@@ -21,7 +21,8 @@ Sibling repos: [assets-blueprint](https://github.com/krerapus/assets-blueprint) 
 
 | Document | Contents |
 |---|---|
-| [release.md](release.md) | Tag → CI → GitHub Release → artifacts (this repo) |
+| [release-workflow.md](release-workflow.md) | **Human-triggered** CLI + assets release + Formula auto-merge |
+| [release.md](release.md) | Versioning, artifact layout, local packaging |
 | [distribution.md](distribution.md) | Channels, Homebrew layout, troubleshooting |
 | [homebrew.md](homebrew.md) | Tap relationship, formula bump, secrets |
 
