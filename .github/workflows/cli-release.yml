@@ -1,9 +1,9 @@
 name: CLI Release
 
-# Human-triggered only (Actions → CLI Release → Run workflow).
-# Does not run on tag push. Creates/updates tag vVERSION from ./VERSION,
-# packages archives, publishes GitHub Release, bumps Homebrew Formula PR,
-# and auto-merges that PR when HOMEBREW_TAP_TOKEN is set.
+# Human-triggered PRODUCTION release only (Actions → CLI Release → Run workflow).
+# Run "CLI Pre-release" first for non-production test builds.
+# Creates/updates tag vVERSION from ./VERSION, publishes as latest GitHub Release,
+# bumps Homebrew Formula PR, and auto-merges when HOMEBREW_TAP_TOKEN is set.
 on:
   workflow_dispatch:
     inputs:
@@ -11,6 +11,11 @@ on:
         description: "Type the VERSION from ./VERSION to confirm (e.g. 1.5.0)"
         required: true
         type: string
+      tested_pre_label:
+        description: "Optional: pre-release label you already tested (e.g. rc.1) — recorded in notes only"
+        required: false
+        type: string
+        default: ""
       bump_formula:
         description: "Bump homebrew-blueprint Formula and auto-merge PR"
         required: true
@@ -37,6 +42,7 @@ jobs:
       tag: ${{ steps.meta.outputs.tag }}
       dry_run: ${{ steps.meta.outputs.dry_run }}
       bump_formula: ${{ steps.meta.outputs.bump_formula }}
+      tested_pre: ${{ steps.meta.outputs.tested_pre }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,7 +63,11 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
           echo "bump_formula=${{ inputs.bump_formula }}" >> "$GITHUB_OUTPUT"
-          echo "Validated release ${TAG} (VERSION=${FILE_VER})"
+          echo "tested_pre=${{ inputs.tested_pre_label }}" >> "$GITHUB_OUTPUT"
+          echo "Validated PRODUCTION release ${TAG} (VERSION=${FILE_VER})"
+          if [[ -n "${{ inputs.tested_pre_label }}" ]]; then
+            echo "Promoting after pre-release label: ${{ inputs.tested_pre_label }}"
+          fi
 
       - name: Checkout assets-blueprint for smoke tests
         uses: actions/checkout@v4
@@ -171,12 +181,24 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists — uploading/clobbering assets"
             gh release upload "$TAG" "${assets[@]}" --clobber
+            gh release edit "$TAG" --latest --prerelease=false \
+              --title "Blueprint CLI ${VER}"
           else
-            echo "Creating release $TAG"
-            gh release create "$TAG" "${assets[@]}" \
-              --title "Blueprint CLI ${VER}" \
-              --generate-notes \
-              --verify-tag
+            TESTED="${{ needs.validate.outputs.tested_pre }}"
+            echo "Creating latest release $TAG"
+            if [[ -n "$TESTED" ]]; then
+              gh release create "$TAG" "${assets[@]}" \
+                --title "Blueprint CLI ${VER}" \
+                --notes "Production release after pre-release testing (${TESTED})." \
+                --latest \
+                --verify-tag
+            else
+              gh release create "$TAG" "${assets[@]}" \
+                --title "Blueprint CLI ${VER}" \
+                --generate-notes \
+                --latest \
+                --verify-tag
+            fi
           fi
 
           remote="$(gh release view "$TAG" --json assets --jq '.assets[].name')"

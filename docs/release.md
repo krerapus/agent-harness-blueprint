@@ -2,9 +2,9 @@
 
 Blueprint CLI releases are owned by **`krerapus/agent-harness-blueprint`**.
 
-**How to publish:** human-triggered Actions only — see **[release-workflow.md](release-workflow.md)** (step-by-step for CLI + assets + Formula).
+**How to publish:** human-triggered Actions — **Pre-release** (test) then **Release** (production). See **[release-workflow.md](release-workflow.md)**.
 
-Pushing a git tag does **not** start CI. The **CLI Release** workflow creates `vX.Y.Z` from `./VERSION` when you run it.
+Pushing a git tag does **not** start CI. Workflows create tags when you run them.
 
 The Homebrew tap only consumes GitHub Release artifacts. It is **not** the source of truth.
 
