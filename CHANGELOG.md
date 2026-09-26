@@ -11,15 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `blueprint switch <profile>` (+ TUI menu **7) switch**) to change install profile while keeping runtimes/skill-mode from state
 - Docs: `docs/profiles.md` — `default` / `engineering` / `product` differences and how to switch
+- Docs: [docs/release-workflow.md](docs/release-workflow.md) — human-triggered pre-release → production + Formula auto-merge
+- Workflow: **CLI Pre-release** (non-production / not latest / no Formula) before **CLI Release** (latest + Formula)
 
 ### Changed
 
 - Profile rename: `startup` → **`product`** (CLI accepts `startup` as a legacy alias and rewrites state to `product`)
 - Removed in-tree pack mirrors (`harness/`, `templates/`, `blueprints/`, `prompts/`, `examples/`); packs resolve only via sibling `assets-blueprint` / `BLUEPRINT_ASSETS_ROOT` / XDG cache. `builtin/` remains for offline CLI bootstrap.
+- CLI + assets releases are **human-triggered** (`workflow_dispatch` only); tag push no longer starts release CI
+- Two-step publish: Pre-release (test) then Release (production / latest); only CLI Release bumps Formula
+- CLI Release checks out `assets-blueprint` for smoke, creates `vVERSION` tag, and **auto-merges** the Homebrew Formula PR when `bump_formula=true`
 
 ### Added
 
-- Production CLI release pipeline: `scripts/package-release.sh`, `scripts/verify-release-archive.sh`, `scripts/bump-homebrew-formula.sh`, and rewritten `.github/workflows/cli-release.yml` (tag `v*.*.*` → test → package → GitHub Release → optional Homebrew PR)
+- Production CLI release pipeline: `scripts/package-release.sh`, `scripts/verify-release-archive.sh`, `scripts/bump-homebrew-formula.sh`, and rewritten `.github/workflows/cli-release.yml` (manual dispatch → test → package → GitHub Release → Formula auto-merge)
 - Docs: `docs/release.md`, `docs/distribution.md`, `docs/homebrew.md`
 - Test: `tests/cli/package-release.sh` (artifact presence, checksum integrity, formula bump)
 - Three-repo architecture: CLI (`agent-harness-blueprint`), assets (`assets-blueprint`), Homebrew tap (`homebrew-blueprint`) — see `docs/architecture-split.md`

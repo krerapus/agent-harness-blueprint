@@ -1,0 +1,177 @@
+name: CLI Pre-release
+
+# Human-triggered non-production build for testing.
+# Creates GitHub pre-release tag vVERSION-<label> (e.g. v1.5.0-rc.1).
+# Does NOT mark latest. Does NOT bump Homebrew Formula.
+# When ready for production, run "CLI Release" separately.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type the VERSION from ./VERSION to confirm (e.g. 1.5.0)"
+        required: true
+        type: string
+      pre_label:
+        description: "Pre-release label (e.g. rc.1, beta.2) → tag vVERSION-label"
+        required: true
+        type: string
+        default: "rc.1"
+      dry_run:
+        description: "Package + verify only (skip tag and GitHub pre-release)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cli-prerelease
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      pre_version: ${{ steps.meta.outputs.pre_version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      dry_run: ${{ steps.meta.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve pre-release version
+        id: meta
+        run: |
+          set -euo pipefail
+          FILE_VER="$(tr -d '[:space:]' < VERSION)"
+          CONFIRM="${{ inputs.confirm }}"
+          LABEL="${{ inputs.pre_label }}"
+          LABEL="${LABEL#v}"
+          LABEL="${LABEL#-}"
+          if [[ "$CONFIRM" != "$FILE_VER" ]]; then
+            echo "error: confirm '$CONFIRM' does not match VERSION '$FILE_VER'" >&2
+            exit 1
+          fi
+          if [[ ! "$LABEL" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]; then
+            echo "error: invalid pre_label '$LABEL' (use rc.1, beta.2, …)" >&2
+            exit 1
+          fi
+          PRE="${FILE_VER}-${LABEL}"
+          TAG="v${PRE}"
+          echo "version=${FILE_VER}" >> "$GITHUB_OUTPUT"
+          echo "pre_version=${PRE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
+          echo "Validated pre-release ${TAG} (base VERSION=${FILE_VER})"
+
+      - name: Checkout assets-blueprint for smoke tests
+        uses: actions/checkout@v4
+        with:
+          repository: krerapus/assets-blueprint
+          path: assets-blueprint
+          ref: master
+
+      - name: Run smoke tests
+        env:
+          BLUEPRINT_ASSETS_ROOT: ${{ github.workspace }}/assets-blueprint
+          CI: "1"
+          NO_COLOR: "1"
+        run: |
+          chmod +x blueprint tests/cli/smoke.sh
+          ./tests/cli/smoke.sh
+
+  package:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package archives as pre-release version
+        run: |
+          chmod +x scripts/package-release.sh scripts/verify-release-archive.sh
+          ./scripts/package-release.sh "${{ needs.validate.outputs.pre_version }}"
+          ./scripts/verify-release-archive.sh --all dist
+
+      - name: Assert required artifacts
+        run: |
+          set -euo pipefail
+          VER="${{ needs.validate.outputs.pre_version }}"
+          required=(
+            "blueprint_${VER}_darwin_arm64.tar.gz"
+            "blueprint_${VER}_darwin_amd64.tar.gz"
+            "blueprint_${VER}_linux_arm64.tar.gz"
+            "blueprint_${VER}_linux_amd64.tar.gz"
+            "checksums.txt"
+          )
+          for f in "${required[@]}"; do
+            test -f "dist/$f" || { echo "missing dist/$f" >&2; exit 1; }
+          done
+          cat dist/checksums.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blueprint-prerelease-${{ needs.validate.outputs.pre_version }}
+          path: dist/**
+          if-no-files-found: error
+
+  publish:
+    needs: [validate, package]
+    if: needs.validate.outputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: blueprint-prerelease-${{ needs.validate.outputs.pre_version }}
+          path: dist
+
+      - name: Re-verify artifacts
+        run: |
+          chmod +x scripts/verify-release-archive.sh
+          ./scripts/verify-release-archive.sh --all dist
+
+      - name: Ensure git tag and GitHub pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          VER: ${{ needs.validate.outputs.pre_version }}
+          BASE: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "blueprint-release-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+          else
+            git tag -a "$TAG" -m "Blueprint CLI pre-release ${VER}"
+            git push origin "$TAG"
+          fi
+
+          assets=(
+            "dist/blueprint_${VER}_darwin_arm64.tar.gz"
+            "dist/blueprint_${VER}_darwin_amd64.tar.gz"
+            "dist/blueprint_${VER}_linux_arm64.tar.gz"
+            "dist/blueprint_${VER}_linux_amd64.tar.gz"
+            "dist/checksums.txt"
+          )
+          for a in "${assets[@]}"; do
+            test -f "$a" || { echo "missing $a" >&2; exit 1; }
+          done
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --clobber
+            gh release edit "$TAG" --prerelease --latest=false
+          else
+            gh release create "$TAG" "${assets[@]}" \
+              --title "Blueprint CLI ${VER} (pre-release)" \
+              --notes "Non-production build for testing (base VERSION ${BASE}). Not Homebrew. When ready, run **CLI Release** for v${BASE}." \
+              --prerelease \
+              --verify-tag
+          fi
+          echo "Pre-release $TAG published (not latest, no Formula bump)"
