@@ -20,7 +20,7 @@ flowchart LR
   cliRepo -->|releases_CLI| brewRepo
   assetsRepo -->|packs_via_assets_install| cliRepo
   brewRepo -->|brew_install| user
-  cliRepo -->|init_install_sync| user
+  cliRepo -->|install_update_sync| user
 ```
 
 ## Stay in this repo (`agent-harness-blueprint`)
@@ -72,7 +72,7 @@ In-tree `harness/`, `templates/`, `blueprints/`, `prompts/`, and `examples/` wer
 | Canonical edit location | [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) packs |
 | Homebrew / Release users | Must run `blueprint assets install core` (and other packs as needed) |
 | Local pack dev | Sibling `../assets-blueprint` or `BLUEPRINT_ASSETS_ROOT` |
-| Offline `init` only | `builtin/` templates shipped with the CLI |
+| Offline harness bootstrap (via install / builtin) | `builtin/` templates shipped with the CLI |
 
 ## Runtime flow
 
@@ -85,10 +85,12 @@ CLI → Asset Manager → packs (sibling checkout / XDG cache)
 ## Config / cache (XDG)
 
 ```text
-~/.config/blueprint/     config.yaml, assets.yaml, credentials/, plugins/
+~/.config/blueprint/     config.yaml, assets.yaml, credentials/ (git identity), plugins/
 ~/.cache/blueprint/      assets/<pack>/<ver>/, downloads/, catalog/
 ~/.local/share/blueprint history.jsonl, targets.json
 ```
+
+Forge auth (`gh` / `glab`) is configured once via `blueprint auth login …` and stays in those CLIs' own stores — shared by every agent and project on the machine. Git committer identity is set once with `blueprint auth git` and applied on `install`.
 
 ## Asset commands
 
@@ -106,4 +108,4 @@ Dev: place `assets-blueprint` as a sibling of this repo, or set `BLUEPRINT_ASSET
 - Local/dev testing: [local-development.md](local-development.md)
 - Projection behavior: [architecture.md](architecture.md)
 - Package vs consumer paths: [compatibility.md](compatibility.md)
-- CLI release: [release.md](release.md) · [distribution.md](distribution.md) · [homebrew.md](homebrew.md)
+- CLI release: [release.md](release.md) · [release-workflow.md](release-workflow.md) · [homebrew.md](homebrew.md)

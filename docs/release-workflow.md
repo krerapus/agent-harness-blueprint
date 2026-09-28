@@ -135,6 +135,24 @@ blueprint assets install core
 blueprint assets doctor
 ```
 
+### Pre-announce verification
+
+Before announcing a production CLI release:
+
+1. Open `https://github.com/krerapus/agent-harness-blueprint/releases/tag/vX.Y.Z`
+2. Confirm all four tarballs + `checksums.txt` are attached
+3. Download the archive for your machine; run `./scripts/verify-release-archive.sh <file>`
+4. Confirm Formula PR merged / sha256 match `checksums.txt`
+5. On a clean machine (or after `brew uninstall blueprint`):
+
+```bash
+brew update
+brew uninstall blueprint || true
+brew install krerapus/blueprint/blueprint
+blueprint --version          # must equal X.Y.Z
+blueprint assets doctor --offline
+```
+
 ## Dry run
 
 Any workflow: `dry_run=true` → validate + package only (no tag / Release / Formula).
@@ -151,7 +169,6 @@ Any workflow: `dry_run=true` → validate + package only (no tag / Release / For
 
 ## Related docs
 
-- [release.md](release.md) — versioning, artifact layout, local packaging
+- [release.md](release.md) — architecture: versioning, channels, artifacts, troubleshooting
 - [homebrew.md](homebrew.md) — tap install, secrets, manual Formula bump
-- [distribution.md](distribution.md) — channels overview
 - Assets: [release-workflow.md](https://github.com/krerapus/assets-blueprint/blob/master/docs/release-workflow.md)

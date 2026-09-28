@@ -95,22 +95,25 @@ Maintainers may ask for docs updates when CLI or projection behavior changes.
 3. **Offline bootstrap:** change entrypoints/memory under `builtin/` when the change must ship inside the CLI archive without packs.
 4. **Contributor-only playbooks:** edit `contributor/` (not projected by consumer `install`).
 5. **Semver:** bump only [`VERSION`](VERSION) for CLI releases; update [CHANGELOG.md](CHANGELOG.md). Pack versions bump in `assets-blueprint`.
-6. **Verify:** `./tests/cli/smoke.sh`, `./tests/cli/harness.sh`, `./blueprint doctor`, `./blueprint assets doctor --offline`. For install/sync/init/del changes, use `--dry-run` then a throwaway `--target`.
+6. **Verify:** `./tests/cli/smoke.sh`, `./tests/cli/harness.sh`, `./blueprint doctor`, `./blueprint assets doctor --offline`. For install/sync/del changes, use `--dry-run` then a throwaway `--target`.
 7. **Release:** follow [docs/release.md](docs/release.md). Formula bumps land on [`homebrew-blueprint`](https://github.com/krerapus/homebrew-blueprint) via [docs/homebrew.md](docs/homebrew.md).
 
 ## Contributor harness (local slash commands)
 
 Package-contributor standards live under [`contributor/`](contributor/) and are **not** projected by consumer `blueprint install`.
 
-To enable local `/commit`, `/pr`, and `skill-creator` in Cursor/Claude while working on this package:
+To enable local `/commit`, `/pr`, `skill-creator`, and `update-changelog` **on top of** a normal `install` harness while working on a blueprint package checkout (`agent-harness-blueprint`, `assets-blueprint`, or `homebrew-blueprint`):
 
 ```bash
-./blueprint install-contributor --runtime all
+./blueprint install default --runtime all --target .
+./blueprint install-contributor --runtime all --target .
 ```
 
-This writes gitignored `.cursor/` / `.claude/` / `.agents/` plus `.agent-blueprint.local.yaml` (`profile: package-contributor`). Do not commit those artifacts. `./blueprint doctor` allows them when the local marker is present.
+`install-contributor` is optional and only offered when the target directory is one of those package repos (basename or layout markers). It layers contributor playbooks onto the already-installed harness — it does not replace `install`.
 
-`install-contributor` projects **only** this set (not the consumer skill pack):
+This writes gitignored `.cursor/` / `.claude/` / `.agents/` extras plus `.agent-blueprint.local.yaml` (`profile: package-contributor`). Do not commit those artifacts. `./blueprint doctor` allows them when the local marker is present.
+
+`install-contributor` projects **only** this add-on set (not a full consumer profile):
 
 | Kind | Name | Source |
 |---|---|---|
@@ -118,6 +121,9 @@ This writes gitignored `.cursor/` / `.claude/` / `.agents/` plus `.agent-bluepri
 | Command | `/pr` | [`contributor/commands/pr.md`](contributor/commands/pr.md) |
 | Rule | contributor-standards | [`contributor/rules/contributor-standards.mdc`](contributor/rules/contributor-standards.mdc) |
 | Skill | `skill-creator` | [`assets-blueprint` packs/core/harness/skills/skill-creator/](https://github.com/krerapus/assets-blueprint/tree/master/packs/core/harness/skills/skill-creator) |
+| Skill | `update-changelog` | [`contributor/skills/update-changelog/`](contributor/skills/update-changelog/) |
+
+Each package repo (`agent-harness-blueprint`, `assets-blueprint`, `homebrew-blueprint`) MUST keep root `CHANGELOG.md` (Keep a Changelog). Use the `update-changelog` skill when landing release notes or cutting a version.
 
 Before adding or substantially rewriting a consumer skill, use `/skill-creator` in the **assets** repo and follow the [Skill naming standard](https://github.com/krerapus/assets-blueprint/blob/master/docs/standards/skill-naming.md). Inventory: [assets docs/skills.md](https://github.com/krerapus/assets-blueprint/blob/master/docs/skills.md).
 
@@ -140,7 +146,7 @@ Before requesting review:
 ./blueprint assets doctor --offline
 ```
 
-If you change install/sync/init/del behavior, exercise a temporary consumer target with `--dry-run` first, then a real throwaway directory.
+If you change install/sync/del behavior, exercise a temporary consumer target with `--dry-run` first, then a real throwaway directory.
 
 Review bar:
 

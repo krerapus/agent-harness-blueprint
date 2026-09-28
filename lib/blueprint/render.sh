@@ -131,13 +131,15 @@ render_menu() {
   if [[ "$width" -lt 56 ]]; then width=56; fi
 
   render_panel_open "Commands" "$width"
-  render_panel_cmd_row "1" "init" "HARNESS.md + agent reference + memory" "$width"
-  render_panel_cmd_row "2" "install" "Blueprint + runtime + skill-mode (rebase / merge)" "$width"
-  render_panel_cmd_row "3" "sync" "Re-apply installed blueprint" "$width"
-  render_panel_cmd_row "4" "update" "Version check + refresh managed context" "$width"
-  render_panel_cmd_row "5" "doctor" "Validate package / target health" "$width"
-  render_panel_cmd_row "6" "target" "Change consumer project path" "$width"
-  render_panel_cmd_row "7" "switch" "Change profile (default / engineering / product)" "$width"
+  render_panel_cmd_row "1" "install" "Harness + blueprint + runtime + skill-mode" "$width"
+  render_panel_cmd_row "2" "sync" "Re-apply installed blueprint" "$width"
+  render_panel_cmd_row "3" "update" "Version check + refresh managed context" "$width"
+  render_panel_cmd_row "4" "doctor" "Validate package / target health" "$width"
+  render_panel_cmd_row "5" "target" "Change consumer project path" "$width"
+  render_panel_cmd_row "6" "switch" "Change profile (default / engineering / product)" "$width"
+  if bp_is_blueprint_package_dir "$target"; then
+    render_panel_cmd_row "7" "contrib" "Optional: contributor skills/standards on top of install" "$width"
+  fi
   render_panel_sep "$width"
   render_panel_cmd_row "h" "help" "Show CLI usage" "$width" "cyan" "left"
   render_panel_cmd_row "q" "quit" "Exit" "$width" "cyan" "left"

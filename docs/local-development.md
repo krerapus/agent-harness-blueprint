@@ -95,7 +95,7 @@ CONSUMER="$(pwd)/.tmp-dev/consumer"
 rm -rf "$CONSUMER"
 mkdir -p "$CONSUMER"
 
-./blueprint init --target "$CONSUMER"
+./blueprint install default --runtime all --target "$CONSUMER"
 ./blueprint install default --runtime all --target "$CONSUMER"
 ./blueprint doctor --target "$CONSUMER"
 
@@ -158,8 +158,8 @@ Run from the **CLI package root**:
 
 | Script | What it covers |
 |--------|----------------|
-| `./tests/cli/smoke.sh` | init/install/sync/doctor/del, skill-mode, conflicts, remote source, clean |
-| `./tests/cli/harness.sh` | `HARNESS.md` / agent-file ownership for init/update |
+| `./tests/cli/smoke.sh` | install/sync/doctor/del, skill-mode, conflicts, remote source, clean |
+| `./tests/cli/harness.sh` | `HARNESS.md` / agent-file ownership for install/update |
 | `./tests/cli/package-release.sh` | `package-release.sh`, archive verify, formula bump dry-run |
 
 Smoke and harness tests set their own temporary `XDG_*` and `BLUEPRINT_TARGETS_FILE` under `.tmp-*` (gitignored). They require a resolvable `core` pack (sibling `assets-blueprint` or `BLUEPRINT_ASSETS_ROOT`).

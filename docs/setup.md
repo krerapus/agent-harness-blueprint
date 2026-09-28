@@ -27,12 +27,15 @@ blueprint assets install core
 ```mermaid
 flowchart TD
   A[Install CLI] --> B["blueprint assets install core"]
-  B --> C["blueprint doctor"]
-  C --> D["blueprint init --target repo"]
-  D --> E["blueprint install PROFILE --runtime all"]
-  E --> F["blueprint doctor --target repo"]
-  F --> G[Start coding with /start]
+  B --> C["blueprint auth login github|gitlab"]
+  C --> D["blueprint auth git --name … --email …"]
+  D --> E["blueprint doctor"]
+  E --> F["blueprint install PROFILE --runtime all --target repo"]
+  F --> G["blueprint doctor --target repo"]
+  G --> H[Start coding with /start]
 ```
+
+Auth is **user-level, once**: forge tokens stay in `gh` / `glab`; git identity lives under `~/.config/blueprint/credentials/git` and is applied as `git config --local` on each `install` target so every agent in that project shares the same committer.
 
 ## Interactive menu
 
@@ -44,7 +47,7 @@ blueprint
 blueprint menu --target /path/to/your-repo
 ```
 
-Menu flow: set **target** first (any local path outside this package), then choose `init` / `install` (blueprint → overlay → runtime → skill-mode) / `sync` / `update` / `doctor`. Type `rm` or `del` (keyword only — no number) to remove the blueprint from the target. Press **Esc** on any selection screen to return to the previous state (from the command menu, Esc returns to the target picker).
+Menu flow: set **target** first (any local path outside this package), then choose `install` (blueprint → overlay → runtime → skill-mode) / `sync` / `update` / `doctor`. Type `rm` or `del` (keyword only — no number) to remove the blueprint from the target. Press **Esc** on any selection screen to return to the previous state (from the command menu, Esc returns to the target picker).
 
 Each mutating action clears the visible terminal once, renders a compact header, streams file events, and prints a summary. CI / non-TTY skips clear and animation.
 
@@ -54,10 +57,13 @@ Each mutating action clears the visible terminal once, renders a compact header,
 blueprint assets install core
 blueprint doctor
 
-# 1) Shared contract + memory only (no .cursor / .claude yet)
-blueprint init --target /path/to/your-repo
+# Optional once per machine: forge auth + git identity for all agents
+blueprint auth login github
+blueprint auth login gitlab --hostname gitlab.com   # or self-hosted host
+blueprint auth git --name "Your Name" --email you@example.com
+blueprint auth status
 
-# 2) Project harness into tool runtimes
+# One command: harness bootstrap + project tool runtimes
 blueprint install default --runtime all --target /path/to/your-repo
 
 # Optional: commit local skills/commands while ignoring blueprint-projected files
@@ -83,9 +89,10 @@ File ownership for `HARNESS.md` vs agent instruction files: **[harness-ownership
 
 | Step | Writes | Does not write |
 |---|---|---|
+| `auth login` | Tokens via `gh` / `glab` credential stores (user-level) | Project files; blueprint does not copy tokens |
+| `auth git` | `~/.config/blueprint/credentials/git` (mode 600) | Project files |
 | `assets install` | Pack cache under `~/.cache/blueprint/` (or uses sibling checkout) | Consumer project files |
-| `init` | `HARNESS.md`, compact harness reference in the selected root instruction file (`AGENTS.md` / `agents.md` / `CLAUDE.md` / `claude.md`, or create `AGENTS.md`), memory skeletons, managed `.gitignore` section, `.agent-blueprint.yaml`, local override stub | `.cursor/`, `.claude/`, `.agents/`; never auto-creates `CLAUDE.md` |
-| `install` | Selected blueprint into `--runtime` roots; managed `.gitignore` for `--skill-mode rebase` (entire `.cursor/` / `.claude/` / `.agents/`) or `merge` (only blueprint skills/commands/rules/templates); preserves agent instruction files | Existing memory file **content**; root `AGENTS.md` / `agents.md` / `CLAUDE.md` / `claude.md` |
+| `install` | `HARNESS.md`, agent harness reference (or create `AGENTS.md`), memory skeletons, local override stub, stored git identity as `git config --local`, selected blueprint into `--runtime` roots, managed `.gitignore`, `.agent-blueprint.yaml` | Never auto-creates `CLAUDE.md`; does not overwrite existing memory file **content** or agent instruction bodies outside the managed block |
 | `update` | Version check; refresh `HARNESS.md`; apply `harness/migrations/renames.log` (remove old skill/rule paths); full-refresh package skills/rules into declared runtimes; stamp state version | Agent instruction files (`AGENTS.md` / `agents.md` / `CLAUDE.md` / `claude.md`) |
 | `sync` | Re-applies installed blueprint + runtimes (`preserve-local`); may fetch remote `source` into `$XDG_CACHE_HOME/blueprint/repos/` | Unmanaged / local overrides; agent instruction files |
 | `rm` / `del` | Removes managed harness/state/gitignore section, memory files, harness reference block, and **blueprint-projected** skills/commands/rules/templates | `AGENTS.md` / `agents.md` / `CLAUDE.md` / `claude.md` bodies; local overrides; **custom skills** and other non-blueprint files under `.cursor/` / `.claude/` / `.agents/` |
@@ -123,8 +130,7 @@ Profiles ship in the `core` pack (`assets-blueprint`), not in the CLI release ar
 
 - [ ] `blueprint assets install core`
 - [ ] `blueprint doctor` on the package
-- [ ] `blueprint init --target <repo>`
-- [ ] `blueprint install … --runtime … --target <repo>`
+- [ ] `blueprint install default --runtime all --target <repo>`
 - [ ] `blueprint doctor --target <repo>`
 - [ ] Start product work with `/start`
 

@@ -6,8 +6,8 @@ Security fixes are applied to the latest released package version (see [`VERSION
 
 | Version | Supported |
 |---|---|
-| 1.2.x | Yes |
-| < 1.2 | No |
+| 1.5.x | Yes |
+| < 1.5 | No |
 
 Older tags may not receive backports. Please upgrade to the latest release when possible.
 
@@ -17,8 +17,8 @@ Older tags may not receive backports. Please upgrade to the latest release when 
 
 Prefer one of these private channels:
 
-1. [GitHub Security Advisories](https://github.com/Supparerk23/agent-harness-blueprint/security/advisories/new) for this repository (preferred)
-2. Contact the maintainer privately via GitHub: [@Supparerk23](https://github.com/Supparerk23)
+1. [GitHub Security Advisories](https://github.com/krerapus/agent-harness-blueprint/security/advisories/new) for this repository (preferred)
+2. Contact the maintainer privately via GitHub: [@krerapus](https://github.com/krerapus)
 
 Include as much of the following as you can:
 

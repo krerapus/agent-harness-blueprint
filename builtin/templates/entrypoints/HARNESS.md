@@ -23,7 +23,7 @@ This file is managed by **shared-agent-blueprints**. Project-specific agent role
 | **Skills** | Curated multi-step procedures (`SKILL.md` + optional templates) |
 | **Memory files** | Cross-session planning, decisions, telemetry, scratch state |
 
-Canonical sources live in the blueprint package under `harness/`. Consuming repos hold **projections** into tool-specific runtimes plus this root harness file.
+Canonical sources live in the **core** asset pack under `packs/core/harness/` (installed via `blueprint assets install core`). Consuming repos hold **projections** into tool-specific runtimes plus this root harness file.
 
 ## Runtime layout
 
@@ -161,7 +161,7 @@ Before finishing:
 
 ## Don't
 
-- Skip `init` / `install` and invent a parallel agent layout
+- Skip `install` and invent a parallel agent layout
 - Treat forge (GitHub vs GitLab) or stack rules as universal unless this repo installed them
 - Store reflections in `RUN_LOG.md` or promote every `LEARNING.md` note into a rule without review
 - Commit secrets into `.agent-blueprint.yaml` or playbooks
