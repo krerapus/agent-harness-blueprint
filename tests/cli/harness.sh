@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Harness ownership tests for blueprint init / update.
+# Harness ownership tests for blueprint install / update.
 # Run from package root: ./tests/cli/harness.sh
 set -euo pipefail
 
@@ -156,11 +156,11 @@ mkdir -p "$BASE"
 
 echo "== 1. no existing agent files =="
 d="$(fresh case1)"
-out="$(CI=1 NO_COLOR=1 "$BP" init --target "$d" 2>&1)"
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" 2>&1)"
 assert_file "HARNESS.md" "$d/HARNESS.md"
 assert_file "AGENTS.md" "$d/AGENTS.md"
 assert_exact "no CLAUDE.md created" "$d" "CLAUDE.md" 0
-assert_contains "init banner" "$out" "Blueprint initialized"
+assert_contains "install banner" "$out" "Blueprint initialized"
 assert_contains "canonical template body" "$(cat "$d/AGENTS.md")" "Shared agent contract for this repository"
 assert_contains "markers" "$(cat "$d/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:START -->"
 assert_contains "memory refs in block" "$(cat "$d/AGENTS.md")" "PLANNING.md"
@@ -169,7 +169,7 @@ echo "== 2. existing AGENTS.md =="
 d="$(fresh case2)"
 printf '# Custom\n\nKeep me.\n' > "$d/AGENTS.md"
 before_out="$(outside_markers_preserved "$d/AGENTS.md")"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_file "HARNESS.md" "$d/HARNESS.md"
 assert_contains "kept custom" "$(cat "$d/AGENTS.md")" "Keep me."
 assert_eq "outside markers preserved" "$(outside_markers_preserved "$d/AGENTS.md")" "$before_out"
@@ -189,7 +189,7 @@ assert_not_contains "no full template injected" "$(cat "$d/AGENTS.md")" "Require
 echo "== 3. existing agents.md =="
 d="$(fresh case3)"
 printf '# lower agents\n' > "$d/agents.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_exact "agents.md kept" "$d" "agents.md" 1
 assert_exact "no AGENTS.md created" "$d" "AGENTS.md" 0
 assert_contains "ref in agents.md" "$(cat "$d/agents.md")" "<!-- BLUEPRINT:HARNESS:START -->"
@@ -198,7 +198,7 @@ assert_contains "lower content" "$(cat "$d/agents.md")" "lower agents"
 echo "== 4. CLAUDE.md only =="
 d="$(fresh case4)"
 printf '# Claude only\n' > "$d/CLAUDE.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_exact "no AGENTS.md created" "$d" "AGENTS.md" 0
 assert_file "HARNESS.md" "$d/HARNESS.md"
 assert_contains "claude content kept" "$(cat "$d/CLAUDE.md")" "Claude only"
@@ -208,7 +208,7 @@ assert_count "one start on CLAUDE" "$(cat "$d/CLAUDE.md")" "<!-- BLUEPRINT:HARNE
 echo "== 4b. claude.md only =="
 d="$(fresh case4b)"
 printf '# lower claude\n' > "$d/claude.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_exact "no AGENTS.md" "$d" "AGENTS.md" 0
 assert_exact "no CLAUDE.md" "$d" "CLAUDE.md" 0
 assert_exact "claude.md kept" "$d" "claude.md" 1
@@ -221,7 +221,7 @@ printf '# Agents custom\n' > "$d/AGENTS.md"
 printf '# Claude custom\n' > "$d/CLAUDE.md"
 claude_before="$(cat "$d/CLAUDE.md")"
 agents_before_out="$(outside_markers_preserved "$d/AGENTS.md")"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_eq "CLAUDE unchanged" "$(cat "$d/CLAUDE.md")" "$claude_before"
 assert_contains "agents ref" "$(cat "$d/AGENTS.md")" "BLUEPRINT:HARNESS:START"
 assert_eq "agents outside preserved" "$(outside_markers_preserved "$d/AGENTS.md")" "$agents_before_out"
@@ -231,7 +231,7 @@ d="$(fresh case6)"
 printf '# lower\n' > "$d/agents.md"
 printf '# Claude\n' > "$d/CLAUDE.md"
 claude_before="$(cat "$d/CLAUDE.md")"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_exact "no AGENTS.md" "$d" "AGENTS.md" 0
 assert_exact "agents.md present" "$d" "agents.md" 1
 assert_contains "ref in agents.md" "$(cat "$d/agents.md")" "BLUEPRINT:HARNESS:START"
@@ -243,24 +243,24 @@ d="$(fresh case7)"
 printf '# UPPER\n' > "$d/AGENTS.md"
 if printf '# lower\n' > "$d/agents.md" 2>/dev/null && \
    [[ "$(cat "$d/AGENTS.md")" == "# UPPER" ]] && [[ "$(cat "$d/agents.md")" == "# lower" ]]; then
-  out="$(CI=1 NO_COLOR=1 "$BP" init --target "$d" 2>&1)"
+  out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" 2>&1)"
   assert_contains "warning both files" "$out" "Both AGENTS.md and agents.md"
   assert_contains "ref in AGENTS" "$(cat "$d/AGENTS.md")" "BLUEPRINT:HARNESS:START"
   assert_eq "agents.md untouched" "$(cat "$d/agents.md")" "# lower"
 else
   # Case-insensitive FS: treat as AGENTS.md-only path.
-  CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+  CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
   assert_contains "ref present" "$(cat "$d/AGENTS.md")" "BLUEPRINT:HARNESS:START"
   echo "  PASS  case7 skipped dual-file (case-insensitive FS)"
   PASS=$((PASS + 1))
 fi
 
-echo "== 8. repeated init idempotent =="
+echo "== 8. repeated install idempotent =="
 d="$(fresh case8)"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
-assert_count "single start after re-init" "$(cat "$d/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:START -->" "1"
-assert_count "single end after re-init" "$(cat "$d/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:END -->" "1"
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
+assert_count "single start after re-install" "$(cat "$d/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:START -->" "1"
+assert_count "single end after re-install" "$(cat "$d/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:END -->" "1"
 
 echo "== 9. existing managed block updated without surrounding churn =="
 d="$(fresh case9)"
@@ -277,7 +277,7 @@ OLD BLOCK
 # Outro
 EOF
 before_out="$(outside_markers_preserved "$d/AGENTS.md")"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_eq "surrounding preserved" "$(outside_markers_preserved "$d/AGENTS.md")" "$before_out"
 assert_contains "new block" "$(cat "$d/AGENTS.md")" "shared-agent-blueprints"
 assert_contains "memory pointer" "$(cat "$d/AGENTS.md")" "PLANNING.md"
@@ -287,7 +287,7 @@ echo "== 10. formatting preserved outside markers =="
 d="$(fresh case10)"
 printf 'Line A\n\n\tIndented\n' > "$d/AGENTS.md"
 before="$(cat "$d/AGENTS.md")"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 # Prefix before markers must equal original (append path).
 got_prefix="$(awk '/<!-- BLUEPRINT:HARNESS:START -->/{exit} {print}' "$d/AGENTS.md")"
 # Original may lack trailing newline handling; compare trimmed body.
@@ -298,7 +298,7 @@ echo "== 11-14. update only HARNESS.md; agent files byte-stable =="
 d="$(fresh case_update)"
 printf '# Agents\nuser text\n' > "$d/AGENTS.md"
 printf '# Claude\nclaude text\n' > "$d/CLAUDE.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 agents_bytes="$(cat "$d/AGENTS.md")"
 claude_bytes="$(cat "$d/CLAUDE.md")"
 # Dirty HARNESS so update has work to do
@@ -313,7 +313,7 @@ assert_contains "harness refreshed" "$(cat "$d/HARNESS.md")" "Execution lifecycl
 
 d2="$(fresh case_update_lower)"
 printf '# lower agents\n' > "$d2/agents.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d2" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d2" >/dev/null 2>&1
 lower_bytes="$(cat "$d2/agents.md")"
 CI=1 NO_COLOR=1 "$BP" update --target "$d2" >/dev/null 2>&1
 assert_eq "agents.md byte-stable on update" "$(cat "$d2/agents.md")" "$lower_bytes"
@@ -322,7 +322,7 @@ echo "== 15. malformed managed markers =="
 d="$(fresh case15)"
 printf '# X\n<!-- BLUEPRINT:HARNESS:START -->\nbroken\n' > "$d/AGENTS.md"
 before="$(cat "$d/AGENTS.md")"
-out="$(CI=1 NO_COLOR=1 "$BP" init --target "$d" 2>&1)"
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" 2>&1)"
 assert_eq "file unchanged" "$(cat "$d/AGENTS.md")" "$before"
 assert_contains "malformed warning" "$out" "Malformed"
 
@@ -330,11 +330,11 @@ echo "== 16. user-authored HARNESS.md not silently overwritten =="
 d="$(fresh case16)"
 printf '# My harness\ncustom\n' > "$d/HARNESS.md"
 before="$(cat "$d/HARNESS.md")"
-out="$(CI=1 NO_COLOR=1 "$BP" init --target "$d" 2>&1)"
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" 2>&1)"
 assert_eq "unmanaged harness preserved" "$(cat "$d/HARNESS.md")" "$before"
 assert_contains "unmanaged warning" "$out" "not Blueprint-managed"
 # --force backups and replaces
-out="$(CI=1 NO_COLOR=1 "$BP" init --force --target "$d" 2>&1)"
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --force --target "$d" 2>&1)"
 assert_contains "managed after force" "$(cat "$d/HARNESS.md")" "managed-by: shared-agent-blueprints"
 bak_count="$(find "$d" -maxdepth 1 -name 'HARNESS.md.blueprint-backup.*' | wc -l | tr -d ' ')"
 assert_eq "backup created" "$bak_count" "1"
@@ -344,7 +344,7 @@ d="${BASE}/path with spaces"
 rm -rf "$d"
 mkdir -p "$d"
 printf '# spaced\n' > "$d/AGENTS.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_file "HARNESS in spaced path" "$d/HARNESS.md"
 assert_contains "ref in spaced path" "$(cat "$d/AGENTS.md")" "BLUEPRINT:HARNESS:START"
 agents_bytes="$(cat "$d/AGENTS.md")"
@@ -394,7 +394,7 @@ printf '# nested claude\n' > "$d/.claude/CLAUDE.md"
 printf '# nested docs\n' > "$d/docs/AGENTS.md"
 printf '# nested examples\n' > "$d/examples/AGENTS.md"
 printf '# nested templates\n' > "$d/templates/AGENTS.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_file "root AGENTS created" "$d/AGENTS.md"
 assert_eq "nested .cursor untouched" "$(cat "$d/.cursor/AGENTS.md")" "# nested cursor"
 assert_eq "nested .claude untouched" "$(cat "$d/.claude/CLAUDE.md")" "# nested claude"
@@ -404,11 +404,11 @@ assert_eq "nested templates untouched" "$(cat "$d/templates/AGENTS.md")" "# nest
 assert_contains "root got markers" "$(cat "$d/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:START -->"
 assert_not_contains "nested cursor no markers" "$(cat "$d/.cursor/AGENTS.md")" "BLUEPRINT:HARNESS:START"
 
-echo "== 20. CLAUDE.md re-init idempotent =="
+echo "== 20. CLAUDE.md re-install idempotent =="
 d="$(fresh case20)"
 printf '# Claude body\n' > "$d/CLAUDE.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 assert_exact "still no AGENTS.md" "$d" "AGENTS.md" 0
 assert_count "single start on CLAUDE" "$(cat "$d/CLAUDE.md")" "<!-- BLUEPRINT:HARNESS:START -->" "1"
 assert_count "single end on CLAUDE" "$(cat "$d/CLAUDE.md")" "<!-- BLUEPRINT:HARNESS:END -->" "1"
@@ -417,7 +417,7 @@ assert_contains "claude body kept" "$(cat "$d/CLAUDE.md")" "Claude body"
 echo "== 21. del strips CLAUDE.md reference block =="
 d="$(fresh case21)"
 printf '# Claude del\nkeep me\n' > "$d/CLAUDE.md"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 CI=1 NO_COLOR=1 "$BP" del --force --target "$d" >/dev/null 2>&1
 assert_exact "no AGENTS after del" "$d" "AGENTS.md" 0
 assert_file "CLAUDE preserved" "$d/CLAUDE.md"
@@ -426,7 +426,7 @@ assert_eq "block stripped" "$(grep -cF 'BLUEPRINT:HARNESS:START' "$d/CLAUDE.md" 
 
 echo "== 22. update removes renamed skills/rules and full-refreshes =="
 d="$(fresh case22)"
-CI=1 NO_COLOR=1 "$BP" init --target "$d" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$d" >/dev/null 2>&1
 # Simulate pre-rename consumer state
 mkdir -p "$d/.cursor/skills/memory-system-protocol" "$d/.cursor/skills/planning-execution-tracking"

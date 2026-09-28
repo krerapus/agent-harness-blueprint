@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lightweight package-manager style CLI for shared-agent-blueprints.
-# Usage: ./blueprint {init|install|install-contributor|update|sync|rm|del|doctor} [blueprint] [--overlay NAME] [--runtime NAME] [--skill-mode rebase|merge] [--dry-run] [--force]
+# Usage: ./blueprint {install|install-contributor|update|sync|rm|del|doctor|auth|assets} [blueprint] [--overlay NAME] [--runtime NAME] [--skill-mode rebase|merge] [--dry-run] [--force]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,12 +35,18 @@ source "${ROOT}/lib/blueprint/migrations.sh"
 source "${ROOT}/lib/blueprint/xdg.sh"
 # shellcheck source=lib/blueprint/assets.sh
 source "${ROOT}/lib/blueprint/assets.sh"
+# shellcheck source=lib/blueprint/auth.sh
+source "${ROOT}/lib/blueprint/auth.sh"
 
 term_init
 bp_ensure_default_config
 
 cmd="${1:-}"
 ASSETS_ARGS=()
+AUTH_ARGS=()
+AUTH_HOSTNAME=""
+AUTH_GIT_NAME=""
+AUTH_GIT_EMAIL=""
 # Flags-only invocation (e.g. ./blueprint --target ./repo) opens the menu.
 # Keep --version / --help as real commands.
 if [[ -n "$cmd" && "$cmd" == -* && "$cmd" != -h && "$cmd" != --help && "$cmd" != --version ]]; then
@@ -69,6 +75,23 @@ if [[ "$cmd" == "assets" ]]; then
       --offline) ASSETS_OFFLINE=1; BLUEPRINT_OFFLINE=1; shift ;;
       --target) TARGET="${2:-.}"; shift 2 ;;
       *) ASSETS_ARGS+=("$1"); shift ;;
+    esac
+  done
+elif [[ "$cmd" == "auth" ]]; then
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) DRY_RUN=1; shift ;;
+      --force) FORCE=1; shift ;;
+      --hostname) AUTH_HOSTNAME="${2:-}"; shift 2 ;;
+      --name) AUTH_GIT_NAME="${2:-}"; shift 2 ;;
+      --email) AUTH_GIT_EMAIL="${2:-}"; shift 2 ;;
+      --target) TARGET="${2:-.}"; shift 2 ;;
+      -h|--help) AUTH_ARGS+=("help"); shift ;;
+      -*)
+        echo "unknown flag: $1" >&2
+        exit 2
+        ;;
+      *) AUTH_ARGS+=("$1"); shift ;;
     esac
   done
 else
@@ -913,7 +936,7 @@ install_memory_templates_if_absent() {
 
 # Legacy name kept for install/sync call sites.
 # Agent instruction files (AGENTS.md / agents.md / CLAUDE.md) are user-owned after
-# init; install/sync must not overwrite them. HARNESS.md is owned by `update`.
+# first install; install/sync must not overwrite them. HARNESS.md is owned by `update`.
 install_compat_docs() {
   local dest_root="$1"
   local f
@@ -1223,6 +1246,39 @@ contributor_local_marker_present() {
   [[ -f "$f" ]] && grep -qE '^profile:[[:space:]]*package-contributor([[:space:]]|$)' "$f"
 }
 
+# Detect blueprint *package* checkouts (CLI / assets / Homebrew tap) — not consumer apps.
+# Primary: directory basename. Fallback: well-known layout markers.
+bp_blueprint_package_kind() {
+  local root="${1:-.}"
+  local abs base
+  abs="$(cd "$root" 2>/dev/null && pwd || echo "$root")"
+  base="$(basename "$abs")"
+  case "$base" in
+    agent-harness-blueprint) printf '%s' "harness"; return 0 ;;
+    assets-blueprint) printf '%s' "assets"; return 0 ;;
+    homebrew-blueprint) printf '%s' "homebrew"; return 0 ;;
+  esac
+  if [[ -x "${abs}/blueprint" && -f "${abs}/VERSION" && -d "${abs}/contributor" ]]; then
+    printf '%s' "harness"
+    return 0
+  fi
+  if [[ -f "${abs}/catalog.yaml" && -d "${abs}/packs" ]]; then
+    printf '%s' "assets"
+    return 0
+  fi
+  if [[ -d "${abs}/Formula" ]]; then
+    printf '%s' "homebrew"
+    return 0
+  fi
+  printf '%s' ""
+}
+
+bp_is_blueprint_package_dir() {
+  local kind
+  kind="$(bp_blueprint_package_kind "$1")"
+  [[ -n "$kind" ]]
+}
+
 write_contributor_local_marker() {
   local dest_root="$1"
   local runtimes_csv="$2"
@@ -1238,7 +1294,8 @@ write_contributor_local_marker() {
   - ${r}"
   done
   cat > "$out" <<EOF
-# Local package-contributor runtime — gitignored; do not commit.
+# Local package-contributor add-on — gitignored; do not commit.
+# Layered on top of blueprint install (skills/standards for package contributors).
 schema_version: 1
 profile: package-contributor
 runtimes:${rt_yaml}
@@ -1249,8 +1306,8 @@ EOF
 
 install_contributor_skill_into() {
   local dest_skills="$1"
-  local skill="skill-creator"
-  local src="${PACKAGE_ROOT}/harness/skills/${skill}"
+  local skill="$2"
+  local src="$3"
   local f rel
   if [[ ! -d "$src" ]]; then
     emit_warning "skip missing skill: $src"
@@ -1261,6 +1318,23 @@ install_contributor_skill_into() {
   for f in $(find "$src" -type f); do
     rel="${f#"${src}/"}"
     copy_file "$f" "${dest_skills}/${skill}/${rel}"
+  done
+}
+
+install_contributor_skills_into() {
+  local dest_skills="$1"
+  # Always layer skill-creator from the core pack (authoring infrastructure).
+  install_contributor_skill_into "$dest_skills" "skill-creator" \
+    "${PACKAGE_ROOT}/harness/skills/skill-creator"
+  # Package-local contributor skills (e.g. update-changelog).
+  local contrib_skills="${ROOT}/contributor/skills"
+  [[ -d "$contrib_skills" ]] || return 0
+  local skill_dir skill
+  for skill_dir in "$contrib_skills"/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    skill="$(basename "$skill_dir")"
+    [[ -f "${skill_dir}SKILL.md" ]] || continue
+    install_contributor_skill_into "$dest_skills" "$skill" "${skill_dir%/}"
   done
 }
 
@@ -1286,7 +1360,7 @@ install_contributor_runtime() {
     "${ROOT}/contributor/rules/contributor-standards.mdc" \
     "${base}/rules/${dest_name}"
 
-  install_contributor_skill_into "${base}/skills"
+  install_contributor_skills_into "${base}/skills"
 }
 
 package_source_ref() {
@@ -1450,37 +1524,25 @@ read_state_runtimes() {
   esac
 }
 
-cmd_init() {
-  bp_begin "Init" 1
-  emit_phase_start "Detecting project"
-  local dest_root="$TARGET"
-  mkdir -p "$dest_root"
-  emit_phase_complete "Detecting project"
-
-  # Init prefers core assets; falls back to builtin/ for offline bootstrap.
-  if bp_bind_assets_package_root; then
-    :
-  elif [[ -d "${ROOT}/builtin/templates/entrypoints" ]]; then
-    PACKAGE_ROOT="${ROOT}/builtin"
-    refresh_package_paths
-    # Builtin may lack manifest — skip need_file MANIFEST below when using builtin-only.
-  else
-    PACKAGE_ROOT="$ROOT"
-    refresh_package_paths
+# Bootstrap consumer harness artifacts (HARNESS.md, agent reference, local override,
+# git identity). Called from install — there is no separate init command.
+# Agent instruction files are reconciled only on first install (no state yet);
+# re-install preserves them (former init-once / install-preserves-agents semantics).
+# Requires PACKAGE_ROOT (and templates) already bound.
+bootstrap_consumer_harness() {
+  local dest_root="$1"
+  local first_install=0
+  if [[ ! -f "${dest_root}/${STATE_FILE}" ]]; then
+    first_install=1
   fi
 
-  emit_phase_start "Loading configuration"
   if [[ -f "$MANIFEST" ]]; then
     need_file "$MANIFEST"
   fi
   need_file "${PACKAGE_ROOT}/templates/entrypoints/HARNESS.md"
   need_file "${PACKAGE_ROOT}/templates/gitignore"
-  emit_phase_complete "Loading configuration"
 
-  session_start "$dest_root" "init" "$(package_source_ref)"
   emit_phase_start "Installing harness"
-  progress_bar_begin 16
-
   detect_agent_entrypoint "$dest_root"
   local w
   if ((${#HARNESS_WARNINGS[@]} > 0)); then
@@ -1489,65 +1551,64 @@ cmd_init() {
     done
   fi
 
-  ensure_harness_file "$dest_root" "$(package_version)" || {
-    emit_phase_complete "Installing harness"
-    bp_end_failure
-    exit 1
-  }
+  # Create HARNESS.md when missing; refresh on first install or --force.
+  # Routine re-install leaves HARNESS to `update`.
+  if [[ ! -f "${dest_root}/HARNESS.md" || "$first_install" -eq 1 || "${FORCE:-0}" -eq 1 ]]; then
+    ensure_harness_file "$dest_root" "$(package_version)" || {
+      emit_phase_complete "Installing harness"
+      return 1
+    }
+  else
+    emit_file_skipped "${dest_root}/HARNESS.md" "preserve (use update to refresh)"
+    HARNESS_SUMMARY_HARNESS="Preserved HARNESS.md"
+  fi
 
-  # Create greenfield AGENTS.md from the canonical template when no root
-  # instruction file exists. Existing AGENTS.md / agents.md / CLAUDE.md / claude.md
-  # are never overwritten — only a compact managed block is reconciled.
-  if [[ "$HARNESS_SELECTED_SOURCE" == "created" && ! -f "$HARNESS_SELECTED_PATH" && "$DRY_RUN" -eq 0 ]]; then
-    local agents_tmpl
-    agents_tmpl="$(agents_template_path)"
-    if [[ -f "$agents_tmpl" ]]; then
-      if ! harness_atomic_copy "$agents_tmpl" "$HARNESS_SELECTED_PATH"; then
-        emit_error "failed to create AGENTS.md"
-        bp_end_failure
-        exit 1
+  if [[ "$first_install" -eq 1 ]]; then
+    # Create greenfield AGENTS.md from the canonical template when no root
+    # instruction file exists. Existing AGENTS.md / agents.md / CLAUDE.md / claude.md
+    # are never overwritten — only a compact managed block is reconciled.
+    if [[ "$HARNESS_SELECTED_SOURCE" == "created" && ! -f "$HARNESS_SELECTED_PATH" && "$DRY_RUN" -eq 0 ]]; then
+      local agents_tmpl
+      agents_tmpl="$(agents_template_path)"
+      if [[ -f "$agents_tmpl" ]]; then
+        if ! harness_atomic_copy "$agents_tmpl" "$HARNESS_SELECTED_PATH"; then
+          emit_error "failed to create AGENTS.md"
+          emit_phase_complete "Installing harness"
+          return 1
+        fi
+        emit_file_added "$HARNESS_SELECTED_PATH"
+        HARNESS_SUMMARY_AGENT="Created AGENTS.md"
       fi
-      emit_file_added "$HARNESS_SELECTED_PATH"
-      HARNESS_SUMMARY_AGENT="Created AGENTS.md"
+    elif [[ "$HARNESS_SELECTED_SOURCE" == "AGENTS.md" ]]; then
+      HARNESS_SUMMARY_AGENT="Found existing AGENTS.md"
+    elif [[ "$HARNESS_SELECTED_SOURCE" == "agents.md" ]]; then
+      HARNESS_SUMMARY_AGENT="Found existing agents.md"
+    elif [[ "$HARNESS_SELECTED_SOURCE" == "CLAUDE.md" ]]; then
+      HARNESS_SUMMARY_AGENT="Found existing CLAUDE.md"
+    elif [[ "$HARNESS_SELECTED_SOURCE" == "claude.md" ]]; then
+      HARNESS_SUMMARY_AGENT="Found existing claude.md"
     fi
-  elif [[ "$HARNESS_SELECTED_SOURCE" == "AGENTS.md" ]]; then
-    HARNESS_SUMMARY_AGENT="Found existing AGENTS.md"
-  elif [[ "$HARNESS_SELECTED_SOURCE" == "agents.md" ]]; then
-    HARNESS_SUMMARY_AGENT="Found existing agents.md"
-  elif [[ "$HARNESS_SELECTED_SOURCE" == "CLAUDE.md" ]]; then
-    HARNESS_SUMMARY_AGENT="Found existing CLAUDE.md"
-  elif [[ "$HARNESS_SELECTED_SOURCE" == "claude.md" ]]; then
-    HARNESS_SUMMARY_AGENT="Found existing claude.md"
-  fi
 
-  if ! ensure_harness_reference "$HARNESS_SELECTED_PATH"; then
-    # Malformed markers are non-fatal warnings; continue init for other artifacts.
-    :
-  fi
-
-  # Never create CLAUDE.md / claude.md. When one of those is the selected
-  # instruction file, only the managed harness reference block may change.
-  if [[ "$HARNESS_SELECTED_SOURCE" == "CLAUDE.md" || "$HARNESS_SELECTED_SOURCE" == "claude.md" ]]; then
-    HARNESS_SUMMARY_CLAUDE="Used as agent entrypoint (compact block only)"
-  elif [[ "$HARNESS_CLAUDE_DETECTED" -eq 1 ]]; then
-    HARNESS_SUMMARY_CLAUDE="Found CLAUDE.md / claude.md (left unchanged)"
-  else
-    HARNESS_SUMMARY_CLAUDE="CLAUDE.md not present"
-  fi
-
-  install_memory_templates_if_absent "$dest_root"
-  SKILL_MODE="${SKILL_MODE:-rebase}"
-  install_gitignore "$dest_root" ""
-  if [[ ! -f "${dest_root}/${STATE_FILE}" ]]; then
-    write_state "$dest_root" "default" ""
-  else
-    emit_file_skipped "${dest_root}/${STATE_FILE}" "preserve"
-    if [[ "$DRY_RUN" -eq 0 ]]; then
-      local existing_ver
-      existing_ver="$(read_state_field "${dest_root}/${STATE_FILE}" version "$(package_version)")"
-      targets_upsert "$dest_root" "$existing_ver" || true
+    if ! ensure_harness_reference "$HARNESS_SELECTED_PATH"; then
+      # Malformed markers are non-fatal warnings; continue for other artifacts.
+      :
     fi
+
+    # Never create CLAUDE.md / claude.md. When one of those is the selected
+    # instruction file, only the managed harness reference block may change.
+    if [[ "$HARNESS_SELECTED_SOURCE" == "CLAUDE.md" || "$HARNESS_SELECTED_SOURCE" == "claude.md" ]]; then
+      HARNESS_SUMMARY_CLAUDE="Used as agent entrypoint (compact block only)"
+    elif [[ "$HARNESS_CLAUDE_DETECTED" -eq 1 ]]; then
+      HARNESS_SUMMARY_CLAUDE="Found CLAUDE.md / claude.md (left unchanged)"
+    else
+      HARNESS_SUMMARY_CLAUDE="CLAUDE.md not present"
+    fi
+  else
+    install_compat_docs "$dest_root"
+    HARNESS_SUMMARY_AGENT="Preserved agent instruction files"
+    HARNESS_SUMMARY_CLAUDE="Preserved (re-install)"
   fi
+
   if [[ ! -f "${dest_root}/${LOCAL_OVERRIDE}" && "$DRY_RUN" -eq 0 ]]; then
     cat > "${dest_root}/${LOCAL_OVERRIDE}" <<'EOF'
 # Local overrides (not managed). Example:
@@ -1558,41 +1619,66 @@ cmd_init() {
 EOF
     emit_file_added "${dest_root}/${LOCAL_OVERRIDE}"
   fi
+  bp_apply_git_identity_to_target "$dest_root"
   emit_phase_complete "Installing harness"
-  print_init_harness_summary
-  emit_info "init complete (HARNESS.md + agent reference; run install --runtime to project tool runtimes)"
-  bp_end_success
+  if [[ "$first_install" -eq 1 ]]; then
+    print_init_harness_summary
+  fi
+  return 0
 }
 
 cmd_install_contributor() {
   bp_begin "Install-contributor" 1
   local dest_root="$TARGET"
-  local abs_dest abs_root
+  local abs_dest
   abs_dest="$(cd "$dest_root" 2>/dev/null && pwd || echo "$dest_root")"
-  abs_root="$(cd "$ROOT" 2>/dev/null && pwd || echo "$ROOT")"
-  if [[ "$abs_dest" != "$abs_root" ]]; then
-    die "install-contributor only runs against the package root (got: $abs_dest)"
+
+  if ! bp_is_blueprint_package_dir "$abs_dest"; then
+    die "install-contributor is optional for blueprint package checkouts only (agent-harness-blueprint, assets-blueprint, homebrew-blueprint) — got: $abs_dest"
+  fi
+
+  local state="${abs_dest}/${STATE_FILE}"
+  if [[ ! -f "$state" ]]; then
+    die "run install first, then install-contributor (adds contributor skills/standards on top of the harness)"
   fi
 
   need_file "${ROOT}/contributor/commands/commit.md"
   need_file "${ROOT}/contributor/commands/pr.md"
   need_file "${ROOT}/contributor/rules/contributor-standards.mdc"
+  need_file "${ROOT}/contributor/skills/update-changelog/SKILL.md"
   bp_require_assets
   need_file "${PACKAGE_ROOT}/harness/skills/skill-creator/SKILL.md"
+
+  # Prefer runtimes already projected by install when --runtime omitted.
+  if [[ "${RUNTIME_SET:-0}" -eq 0 ]]; then
+    local state_runtimes
+    state_runtimes="$(read_state_runtimes "$state")"
+    if [[ -n "$state_runtimes" ]]; then
+      local rt_count
+      rt_count="$(echo "$state_runtimes" | wc -w | tr -d ' ')"
+      if [[ "$rt_count" -gt 1 ]]; then
+        RUNTIME="all"
+      else
+        RUNTIME="$(echo "$state_runtimes" | awk '{print $1}')"
+      fi
+      RUNTIME_SET=1
+    fi
+  fi
 
   select_runtime || die "cancelled (no runtime selected)"
 
   local runtimes
   runtimes="$(normalize_runtimes "$RUNTIME")"
 
-  emit_phase_start "Copying contributor harness"
-  emit_info "installing package-contributor runtime -> $dest_root (runtimes: $runtimes)"
+  session_start "$abs_dest" "install-contributor" "$(package_source_ref)"
+  emit_phase_start "Copying contributor add-on"
+  emit_info "contributor add-on on top of install → $abs_dest (kind=$(bp_blueprint_package_kind "$abs_dest") runtimes: $runtimes)"
   local rt
   for rt in $runtimes; do
-    install_contributor_runtime "$dest_root" "$rt"
+    install_contributor_runtime "$abs_dest" "$rt"
   done
-  write_contributor_local_marker "$dest_root" "$runtimes"
-  emit_phase_complete "Copying contributor harness"
+  write_contributor_local_marker "$abs_dest" "$runtimes"
+  emit_phase_complete "Copying contributor add-on"
   bp_end_success
 }
 
@@ -1740,10 +1826,15 @@ cmd_install() {
 
   session_start "$dest_root" "install" "${BP_CTX_SOURCE:-}"
   session_update_phase "$dest_root" "Copying files"
+  progress_bar_begin "$(estimate_managed_copy_total "$runtimes")"
+
+  bootstrap_consumer_harness "$dest_root" || {
+    bp_end_failure
+    exit 1
+  }
 
   emit_phase_start "Copying files"
   emit_info "installing blueprint: $BLUEPRINT -> $dest_root (runtimes: $runtimes skill-mode: $SKILL_MODE)"
-  progress_bar_begin "$(estimate_managed_copy_total "$runtimes")"
   install_compat_docs "$dest_root"
   install_memory_templates_if_absent "$dest_root"
   install_gitignore "$dest_root" "$runtimes"
@@ -1960,7 +2051,7 @@ cmd_sync() {
       fi
     fi
   elif [[ "$RUNTIME_SET" -eq 0 ]]; then
-    emit_error "no ${STATE_FILE}; run: ./blueprint init && ./blueprint install <blueprint>"
+    emit_error "no ${STATE_FILE}; run: ./blueprint install <blueprint> --runtime <name> --target <path>"
     bp_end_failure
     exit 1
   fi
@@ -2362,12 +2453,32 @@ cmd_doctor() {
     done
     for bad in PLANNING.md DECISIONS.md RUN_LOG.md HOTCACHE.md LEARNING.md ANTI-PATTERNS.md; do
       if [[ -e "${dest_root}/${bad}" ]]; then
-        ui_fail "should not contain consumer artifact: $bad"
-        errors=$((errors + 1))
+        if [[ "$contributor_local" -eq 1 ]]; then
+          ui_ok "$bad (package-contributor local harness)"
+        else
+          ui_fail "should not contain consumer artifact: $bad"
+          errors=$((errors + 1))
+        fi
       else
         ui_ok "no $bad"
       fi
     done
+    if [[ -f "${dest_root}/HARNESS.md" ]]; then
+      if [[ "$contributor_local" -eq 1 ]]; then
+        ui_ok "HARNESS.md (package-contributor local harness)"
+      else
+        ui_fail "should not contain consumer artifact: HARNESS.md"
+        errors=$((errors + 1))
+      fi
+    fi
+    if [[ -f "${dest_root}/${STATE_FILE}" ]]; then
+      if [[ "$contributor_local" -eq 1 ]]; then
+        ui_ok "${STATE_FILE} (package-contributor local harness)"
+      else
+        ui_fail "should not contain consumer artifact: ${STATE_FILE}"
+        errors=$((errors + 1))
+      fi
+    fi
     ui_section "Entrypoints"
     for f in AGENTS.md CLAUDE.md; do
       if [[ -e "${dest_root}/$f" ]]; then
@@ -2405,24 +2516,22 @@ cmd_doctor() {
     if [[ "$has_state" -eq 0 && "$has_agents" -eq 0 && "$has_agents_lower" -eq 0 ]]; then
       ui_fail "not initialized"
       printf '\n'
-      ui_next "menu → 1) init"
-      ui_next "menu → 2) install  (blueprint + runtime)"
-      ui_next "menu → 5) doctor   (re-check)"
+      ui_next "menu → 1) install  (harness + blueprint + runtime)"
+      ui_next "menu → 4) doctor   (re-check)"
       printf '\n'
-      ui_info "CLI: ./blueprint init --target ${abs_dest}"
       ui_info "CLI: ./blueprint install default --runtime all --target ${abs_dest}"
       errors=$((errors + 1))
     else
       if [[ "$has_state" -eq 1 ]]; then
         ui_ok "${STATE_FILE}"
       else
-        ui_fail "missing ${STATE_FILE}  (run init, then install)"
+        ui_fail "missing ${STATE_FILE}  (run install)"
         errors=$((errors + 1))
       fi
       if [[ "$has_harness" -eq 1 ]]; then
         ui_ok "HARNESS.md"
       else
-        ui_fail "missing HARNESS.md  (run init or update)"
+        ui_fail "missing HARNESS.md  (run install or update)"
         errors=$((errors + 1))
       fi
       if [[ "$has_agents" -eq 1 ]]; then
@@ -2430,11 +2539,11 @@ cmd_doctor() {
       elif [[ "$has_agents_lower" -eq 1 ]]; then
         ui_ok "agents.md"
       else
-        ui_fail "missing AGENTS.md / agents.md  (run init)"
+        ui_fail "missing AGENTS.md / agents.md  (run install)"
         errors=$((errors + 1))
       fi
       if [[ "$has_claude" -eq 1 ]]; then
-        ui_ok "CLAUDE.md (unchanged by init/update)"
+        ui_ok "CLAUDE.md (unchanged by install/update)"
       else
         ui_skip "CLAUDE.md not present"
       fi
@@ -2444,7 +2553,7 @@ cmd_doctor() {
       declared="$(read_state_runtimes "$state")"
       if [[ -z "$declared" ]]; then
         ui_fail "no tool runtime installed yet"
-        ui_next "menu → 2) install"
+        ui_next "menu → 1) install"
         errors=$((errors + 1))
       else
         local found_runtime=0
@@ -2527,6 +2636,8 @@ cmd_doctor() {
     ui_skip "gh not found (only needed for GitHub workflows)"
   fi
 
+  bp_doctor_auth_section
+
   if [[ "$errors" -gt 0 ]]; then
     ui_footer_fail "$errors"
     events_finish_op "failed"
@@ -2540,19 +2651,26 @@ cmd_doctor() {
 }
 
 usage() {
-  cat <<'EOF'
+  cat <<EOF
 Usage: blueprint [<command>] [blueprint] [flags]
        ./blueprint [<command>] [blueprint] [flags]
 
 Commands:
   (none) / menu        Interactive menu (TTY)
-  init                 Write HARNESS.md + agent harness reference, memory, .gitignore
-  install <blueprint>  Install blueprint into --target runtimes
+  install <blueprint>  Bootstrap harness + install blueprint into --target runtimes
   switch <blueprint>   Change profile on an existing install (keeps runtimes/skill-mode)
-  install-contributor  Project package-only contributor harness into this package root
+EOF
+  if bp_is_blueprint_package_dir "${TARGET:-.}"; then
+    cat <<'EOF'
+  install-contributor  Optional: add contributor skills/standards on top of install
+                       (blueprint package dirs only: agent-harness / assets / homebrew)
+EOF
+  fi
+  cat <<'EOF'
   update               Version check, then refresh HARNESS.md + managed runtimes (preserves agent files)
   sync                 Re-apply installed blueprint with preserve-local
   assets <cmd>         Manage asset packs (list|install|update|doctor)
+  auth <cmd>           One-time GitHub/GitLab login + git identity (see: blueprint auth --help)
   clean                Delete reviewed *.blueprint-backup.* leftovers on --target
   rm | del             Remove blueprint from --target (keyword only in menu; no number)
                        (keeps custom skills; removes blueprint-projected runtime files)
@@ -2570,8 +2688,7 @@ Flags:
   --skill-mode MODE    rebase | merge  (install/sync/update; default rebase)
                        rebase: gitignore entire .cursor/ .claude/ .agents/
                        merge:  gitignore only blueprint skills/commands/rules/templates
-  --target PATH        Consumer project root (any local path; not this package)
-                       (install-contributor: must be this package root)
+  --target PATH        Project root (consumer app, or a blueprint package checkout)
   --dry-run            Print actions without writing
   --force              Overwrite unmanaged conflicting runtime files; also required for non-interactive rm/del/clean
   --offline            Prefer local assets only (with: assets doctor)
@@ -2579,6 +2696,10 @@ Flags:
 Examples:
   ./blueprint assets install core
   ./blueprint assets list
+  ./blueprint auth login github
+  ./blueprint auth login gitlab --hostname gitlab.com
+  ./blueprint auth git --name "Your Name" --email you@example.com
+  ./blueprint auth status
   ./blueprint update --force --target ~/Developer/my-app
   ./blueprint sync --force --target ~/Developer/my-app
   ./blueprint clean --force --target ~/Developer/my-app
@@ -2600,12 +2721,17 @@ Remote source:
   Prefer independently versioned packs via `blueprint assets install`.
   Legacy: when .agent-blueprint.yaml source is a git URL, install/sync may still
   clone under $XDG_CACHE_HOME/blueprint/repos/ then copy from that cache.
-
-Package contributors:
-  ./blueprint install-contributor --runtime all
-  Projects contributor/ + skill-creator into gitignored .cursor/.claude/.agents
-  (writes .agent-blueprint.local.yaml; not for consumer targets).
 EOF
+  if bp_is_blueprint_package_dir "${TARGET:-.}"; then
+    cat <<'EOF'
+
+Package contributors (optional add-on after install):
+  ./blueprint install --runtime all --target .
+  ./blueprint install-contributor --runtime all --target .
+  Layers contributor/ + skill-creator onto the install harness (gitignored runtimes).
+  Shown for agent-harness-blueprint, assets-blueprint, and homebrew-blueprint only.
+EOF
+  fi
 }
 
 # Interactive line prompt. Sets BP_PROMPT_VALUE. Returns 1 on Escape.
@@ -3044,7 +3170,7 @@ menu_splash() {
 cmd_menu() {
   if [[ ! -t 0 || ! -t 1 ]]; then
     usage
-    die "interactive menu requires a TTY; pass a command (init|install|…)"
+    die "interactive menu requires a TTY; pass a command (install|sync|…)"
   fi
 
   # Target prompt clears and shows banner as the first CLI frame.
@@ -3061,16 +3187,13 @@ cmd_menu() {
     fi
     choice="${BP_READ_RESULT:-}"
     case "$choice" in
-      1|init)
-        menu_run cmd_init
-        ;;
-      2|install)
+      1|install)
         if ! menu_install_wizard; then
           continue
         fi
         menu_run cmd_install
         ;;
-      7|switch)
+      6|switch)
         BLUEPRINT_SET_EXPLICIT=0
         if [[ -t 0 && -t 1 ]]; then
           emit_info "switch: pick a new blueprint for this target"
@@ -3086,18 +3209,26 @@ cmd_menu() {
         fi
         menu_run cmd_switch
         ;;
-      3|sync)
+      2|sync)
         menu_run cmd_sync
         ;;
-      4|update)
+      3|update)
         menu_run cmd_update
         ;;
-      5|doctor)
+      4|doctor)
         menu_run cmd_doctor
         ;;
-      6|target|set)
+      5|target|set)
         menu_splash "$(pwd)"
         menu_prompt_target change || true
+        ;;
+      7|contrib|contributor|install-contributor)
+        if ! bp_is_blueprint_package_dir "$TARGET"; then
+          warn "contrib is only for blueprint package checkouts (agent-harness / assets / homebrew)"
+          sleep 0.8 2>/dev/null || true
+          continue
+        fi
+        menu_run cmd_install_contributor
         ;;
       h|help)
         term_reset_clear_flag
@@ -3125,7 +3256,7 @@ cmd_menu() {
         # Empty Enter re-prompts; use q to quit.
         ;;
       *)
-        warn "invalid choice: $choice (use 1-7, h, q, rm, del, clean, switch, or Esc)"
+        warn "invalid choice: $choice (use 1-6, h, q, rm, del, clean, switch, or Esc; 7/contrib on blueprint packages)"
         sleep 0.6 2>/dev/null || true
         ;;
     esac
@@ -3134,13 +3265,16 @@ cmd_menu() {
 
 case "$cmd" in
   menu|interactive) cmd_menu ;;
-  init) cmd_init ;;
+  init)
+    die "init was removed — use: blueprint install <profile> --runtime <name> --target <path>"
+    ;;
   install) cmd_install ;;
   switch) cmd_switch ;;
   install-contributor) cmd_install_contributor ;;
   update) cmd_update ;;
   sync) cmd_sync ;;
   assets) cmd_assets "${ASSETS_ARGS[@]+"${ASSETS_ARGS[@]}"}" ;;
+  auth) cmd_auth "${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"}" ;;
   clean) cmd_clean ;;
   del|rm) cmd_del ;;
   doctor) cmd_doctor ;;

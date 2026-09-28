@@ -55,3 +55,29 @@ ANTI-PATTERNS.md
 AGENTS.local.md
 CLAUDE.local.md
 targets.json
+
+# --- shared-agent-blueprints (managed) ---
+# Local overrides and install conflict siblings — keep out of git.
+# skill_mode: rebase — ignore entire tool runtimes (.cursor / .claude / .agents).
+.cursor/
+.claude/
+.agents/
+.testiny/
+PLANNING.md
+DECISIONS.md
+RUN_LOG.md
+HOTCACHE.md
+LEARNING.md
+ANTI-PATTERNS.md
+*.blueprint-conflict
+*.blueprint-backup.*
+.agent-blueprint.local.yaml
+.agent-blueprint/
+AGENTS.local.md
+CLAUDE.local.md
+targets.json
+# --- end shared-agent-blueprints ---
+
+
+
+

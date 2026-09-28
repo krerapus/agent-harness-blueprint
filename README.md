@@ -4,7 +4,7 @@ Reusable multi-agent harness for **Cursor**, **Claude Code**, **OpenAI Codex**, 
 
 This repository is the **CLI + runtime** only. Static packs and the Homebrew Formula live in sibling repos — see [Where content lives](#where-content-lives) and [docs/architecture-split.md](docs/architecture-split.md).
 
-Adopting projects run `init` → `assets install core` → `install` before product work. Live `.cursor/` / `.claude/` / `.agents/` trees and task memory files belong in consumers only.
+Adopting projects run `assets install core` → `install` before product work. Live `.cursor/` / `.claude/` / `.agents/` trees and task memory files belong in consumers only.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -32,7 +32,7 @@ This package keeps the CLI and projection runtime canonical, loads harness conte
 - **Blueprint profiles** — `default`, `engineering`, `product` (+ optional GitLab overlay) from the `core` pack
 - **Managed consumer contract** — `HARNESS.md` + harness reference in `AGENTS.md` / `agents.md`
 - **Preserve-local sync** — refreshes managed files without clobbering memory or agent bodies
-- **Interactive TTY menu** — guided `init` / `install` / `sync` / `update` / `doctor` / `rm`
+- **Interactive TTY menu** — guided `install` / `sync` / `update` / `doctor` / `rm`
 - **Asset manager** — install/update versioned packs from GitHub Releases or a local checkout
 - **Remote source cache** — git URL sources resolve under `$XDG_CACHE_HOME/blueprint/repos/`
 
@@ -48,7 +48,7 @@ flowchart LR
   cliRepo -->|releases_CLI| brewRepo
   assetsRepo -->|packs_via_assets_install| cliRepo
   brewRepo -->|brew_install| user
-  cliRepo -->|init_install_sync| user
+  cliRepo -->|install_update_sync| user
 ```
 
 Canonical harness content comes from asset packs (`assets-blueprint` / cache). Tool runtimes are projections. `AGENTS.md` is the shared contract every agent reads.
@@ -74,10 +74,10 @@ flowchart LR
     memory[Memory files]
   end
 
-  cli -->|init| agents
-  cli -->|init| memory
+  cli -->|install| agents
+  cli -->|install| memory
   builtin -->|offline bootstrap| agents
-  entry -->|init| agents
+  entry -->|install| agents
   harness -->|install| cursor
   harness -->|install| claude
   harness -->|install| agentsRt
@@ -119,13 +119,12 @@ blueprint assets install core
 
 For local pack development, check out [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) as a sibling (or set `BLUEPRINT_ASSETS_ROOT`).
 
-Release docs: [docs/release.md](docs/release.md), [docs/homebrew.md](docs/homebrew.md), [docs/distribution.md](docs/distribution.md).
+Release docs: [docs/release.md](docs/release.md), [docs/release-workflow.md](docs/release-workflow.md), [docs/homebrew.md](docs/homebrew.md).
 
 ### Quick Start
 
 ```bash
 blueprint doctor
-blueprint init --target /path/to/your-repo
 blueprint install default --runtime all --target /path/to/your-repo
 blueprint doctor --target /path/to/your-repo
 ```
@@ -138,7 +137,7 @@ Step-by-step: [docs/setup.md](docs/setup.md)
 
 ### Configuration
 
-After `init`, the consumer gets:
+After `install`, the consumer gets:
 
 | File | Role |
 |---|---|
@@ -158,11 +157,11 @@ Usage: blueprint [<command>] [blueprint] [flags]
 
 Commands:
   (none) / menu        Interactive menu (TTY)
-  init                 Write HARNESS.md + agent harness reference, memory, .gitignore
-  install <blueprint>  Install blueprint into --target runtimes
-  install-contributor  Project package-only contributor harness (this package root)
+  install <blueprint>  Bootstrap harness + install blueprint into --target runtimes
+  install-contributor  Optional: contributor skills/standards on top of install (package dirs)
   update               Version check, then refresh HARNESS.md + managed runtimes
   sync                 Re-apply installed blueprint with preserve-local
+  auth …               One-time GitHub/GitLab login + git identity
   rm / del             Remove blueprint from --target
   doctor               Validate package + target install health
   assets …             list | install | update | doctor for content packs
@@ -181,9 +180,8 @@ Flags:
 | Step | Result |
 |---|---|
 | `assets install core` | Fetches/mounts the `core` pack (required before meaningful `install` on Release/Homebrew installs) |
-| `init` | `HARNESS.md`, agent harness reference, memory skeletons, managed `.gitignore` — **no** tool runtime yet |
-| `install` | Projects commands/rules/skills into `.cursor/`, `.claude/`, and/or `.agents/` |
-| `install-contributor` | Package-only: projects `contributor/` + `skill-creator` into gitignored local runtimes |
+| `install` | Bootstraps `HARNESS.md` / agent reference / memory / git identity and projects commands/rules/skills into `.cursor/`, `.claude/`, and/or `.agents/` |
+| `install-contributor` | Optional add-on for blueprint package checkouts only: layers `contributor/` + `skill-creator` on top of a prior `install` |
 | `update` | Version check vs package `VERSION`, refresh `HARNESS.md`, apply skill/rule renames |
 | `sync` | Re-applies the installed blueprint (`preserve-local`) |
 | `del` | Removes managed blueprint + memory files; keeps custom skills and agent instruction bodies |
@@ -298,7 +296,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Follow the [Code of Conduct](CODE_OF_CON
 | Setup | [setup.md](docs/setup.md), [local-development.md](docs/local-development.md), [adoption-and-lineage.md](docs/adoption-and-lineage.md), [profiles.md](docs/profiles.md) |
 | How it works | [how-it-works.md](docs/how-it-works.md), [skills.md](docs/skills.md), [rules.md](docs/rules.md), [slash-commands.md](docs/slash-commands.md) |
 | Workflow | [harness-workflow.md](docs/harness-workflow.md), [quick-start.md](docs/quick-start.md), [memory-and-planning.md](docs/memory-and-planning.md) |
-| Release | [release.md](docs/release.md), [distribution.md](docs/distribution.md), [homebrew.md](docs/homebrew.md) |
+| Release | [release.md](docs/release.md), [release-workflow.md](docs/release-workflow.md), [homebrew.md](docs/homebrew.md) |
 | Community | [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md), [github-labels.md](docs/github-labels.md) |
 | Index | [docs/README.md](docs/README.md) |
 

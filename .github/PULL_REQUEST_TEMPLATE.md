@@ -22,7 +22,7 @@
 - [ ] `./tests/cli/smoke.sh`
 - [ ] `./tests/cli/harness.sh` (if harness/CLI ownership touched)
 - [ ] `./blueprint doctor`
-- [ ] Manual check on a throwaway `--target` (if install/sync/init/del changed)
+- [ ] Manual check on a throwaway `--target` (if install/sync/del changed)
 - [ ] `./blueprint install-contributor` checked (if contributor harness touched)
 
 ## Notes for reviewers

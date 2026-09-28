@@ -111,7 +111,7 @@ context_require_markers() {
   if [[ "$allow_create" -eq 1 ]]; then
     return 0
   fi
-  # init may create into empty dirs; install/sync need markers or existing target
+  # install may create into empty dirs; sync needs markers or existing target
   if [[ -d "${dest}/.git" || -f "${dest}/.git" ]]; then
     return 0
   fi

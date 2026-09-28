@@ -330,7 +330,7 @@ ensure_harness_reference() {
   fi
 
   if [[ "$start_count" -eq 1 && "$end_count" -eq 0 ]] || [[ "$start_count" -eq 0 && "$end_count" -eq 1 ]]; then
-    emit_warning "Malformed harness reference markers in $(basename "$agent_file") (only one of START/END present). Left unchanged; repair markers then re-run init."
+    emit_warning "Malformed harness reference markers in $(basename "$agent_file") (only one of START/END present). Left unchanged; repair markers then re-run install."
     HARNESS_SUMMARY_REF="Skipped (malformed markers)"
     return 1
   fi

@@ -23,4 +23,4 @@ blueprint switch product --target /path/to/repo
 blueprint switch engineering --overlay gitlab --target /path/to/repo
 ```
 
-Or in the interactive menu: **7) switch**. Runtimes and skill-mode come from `.agent-blueprint.yaml` unless you pass flags. `sync` / `update` keep the current profile.
+Or in the interactive menu: **6) switch**. Runtimes and skill-mode come from `.agent-blueprint.yaml` unless you pass flags. `sync` / `update` keep the current profile.

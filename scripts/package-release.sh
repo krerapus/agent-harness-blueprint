@@ -81,8 +81,8 @@ stage_one() {
   fi
   need "${dir}/blueprint"
   need "${dir}/lib/blueprint/assets.sh"
-  need "${dir}/builtin/VERSION"
   need "${dir}/VERSION"
+  need "${dir}/builtin"
 
   # Deterministic tar+gzip (stable SHA256). Top-level dir is always "blueprint/".
   python3 - "$stage_root" "${DIST}/${asset_stub}.tar.gz" <<'PY'

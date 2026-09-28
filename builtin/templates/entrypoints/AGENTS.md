@@ -9,10 +9,7 @@ This project uses **shared-agent-blueprints**. Shared lifecycle, quality gates, 
 Before starting product work, install the harness:
 
 ```bash
-# 1) Shared harness + memory skeletons (no tool runtime yet)
-/path/to/agent-harness-blueprint/blueprint init --target .
-
-# 2) Project commands/rules/skills into tool runtimes
+# Harness + memory + tool runtimes in one step
 /path/to/agent-harness-blueprint/blueprint install default --runtime all --target .
 # engineering + GitLab MR playbooks:
 # /path/to/agent-harness-blueprint/blueprint install engineering --overlay gitlab --runtime all --target .

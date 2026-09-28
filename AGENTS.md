@@ -10,13 +10,12 @@ Ownership map: [docs/architecture-split.md](docs/architecture-split.md).
 
 ```bash
 blueprint assets install core
-blueprint init --target /path/to/repo
 blueprint install default --runtime all --target /path/to/repo
 blueprint sync --target /path/to/repo
 blueprint doctor --target /path/to/repo
 ```
 
-`init` writes consumer `HARNESS.md`, appends a managed harness reference to the highest-priority root instruction file, and seeds memory skeletons. `install` projects the resolved `core` pack into `.cursor/`, `.claude/`, and/or `.agents/` per `--runtime`.
+`install` bootstraps consumer `HARNESS.md`, appends a managed harness reference to the highest-priority root instruction file, seeds memory skeletons, and projects the resolved `core` pack into `.cursor/`, `.claude/`, and/or `.agents/` per `--runtime`.
 
 See [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [docs/](docs/).
 
@@ -30,8 +29,9 @@ Standards for contributors working **on this CLI package**. Unrelated to consume
 | `/pr` + release notes | [contributor/commands/pr.md](contributor/commands/pr.md) |
 | Always-on standards | [contributor/rules/contributor-standards.mdc](contributor/rules/contributor-standards.mdc) |
 | `skill-creator` | [`assets-blueprint` skill-creator](https://github.com/krerapus/assets-blueprint/tree/master/packs/core/harness/skills/skill-creator) |
+| `update-changelog` | [contributor/skills/update-changelog/](contributor/skills/update-changelog/) |
 
-`./blueprint install-contributor --runtime all` projects those into gitignored local runtimes (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+`./blueprint install default --runtime all --target .` then `./blueprint install-contributor --runtime all` layers contributor playbooks onto the install harness in gitignored local runtimes (see [CONTRIBUTING.md](CONTRIBUTING.md)). Only offered for blueprint package checkouts. Keep root `CHANGELOG.md` current via `update-changelog`.
 
 - Before adding or substantially rewriting a **consumer** skill, edit [`assets-blueprint`](https://github.com/krerapus/assets-blueprint) and follow [skill-naming](https://github.com/krerapus/assets-blueprint/blob/master/docs/standards/skill-naming.md).
 

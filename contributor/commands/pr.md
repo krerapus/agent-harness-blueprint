@@ -2,6 +2,8 @@ Create a pull request for the current branch on **this blueprint package** (GitH
 
 This playbook is for package contributors only. It is unrelated to consumer/target GitLab overlays.
 
+**One-time auth:** `blueprint auth login github` then `blueprint auth status` (tokens stay in `gh`).
+
 ---
 
 1. Write a clear title:
@@ -38,7 +40,7 @@ This playbook is for package contributors only. It is unrelated to consumer/targ
 - [ ] `./tests/cli/smoke.sh`
 - [ ] `./tests/cli/harness.sh` (if harness/CLI ownership touched)
 - [ ] `./blueprint doctor`
-- [ ] Manual check on a throwaway `--target` (if install/sync/init/del changed)
+- [ ] Manual check on a throwaway `--target` (if install/sync/del changed)
 - [ ] `./blueprint install-contributor` checked (if contributor harness touched)
 
 ## Notes for reviewers
@@ -51,6 +53,7 @@ This playbook is for package contributors only. It is unrelated to consumer/targ
 - Suitable to paste under `CHANGELOG.md` → `## [Unreleased]` (Added / Changed / Fixed as appropriate)
 - Prefer outcome/intent over file lists
 - **Do not** include filenames
+- After drafting release notes, apply the `update-changelog` skill so `CHANGELOG.md` `[Unreleased]` matches (required for agent-harness / assets / homebrew package repos)
 
 3. Push branch if needed:
    ```bash
@@ -89,7 +92,7 @@ This playbook is for package contributors only. It is unrelated to consumer/targ
    - [ ] `./tests/cli/smoke.sh`
    - [ ] `./tests/cli/harness.sh` (if harness/CLI ownership touched)
    - [ ] `./blueprint doctor`
-   - [ ] Manual check on a throwaway `--target` (if install/sync/init/del changed)
+   - [ ] Manual check on a throwaway `--target` (if install/sync/del changed)
 
    ## Notes for reviewers
 

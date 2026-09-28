@@ -112,37 +112,73 @@ assert_not_line() {
 cleanup() {
   rm -rf "$TMP" "${TMP}-xdg" "${TMP}-empty" "${TMP}-remote-consumer" "${TMP}-targets.json" \
     "${TMP}-merge" "${TMP}-merge-claude" "${TMP}-merge-gitlab" "${TMP}-merge-targets.json" \
-    "${TMP}-del-custom"
+    "${TMP}-del-custom" "${TMP}-auth" "${TMP}-auth-targets.json" "${TMP}-targets-registry.json"
 }
 trap cleanup EXIT
 
 export CI=1
 export NO_COLOR=1
 export BLUEPRINT_HISTORY_LIMIT=10
-# Isolate history/cache/targets for tests
+# Isolate history/cache/targets/config for tests
 export XDG_DATA_HOME="${TMP}-xdg/data"
 export XDG_CACHE_HOME="${TMP}-xdg/cache"
+export XDG_CONFIG_HOME="${TMP}-xdg/config"
 export BLUEPRINT_TARGETS_FILE="${TMP}-targets.json"
-mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME"
 rm -rf "$TMP" "${TMP}-targets.json"
 mkdir -p "$TMP"
-
-echo "== init =="
-out="$(CI=1 NO_COLOR=1 "$BP" init --target "$TMP" 2>&1)"
+echo "== install (bootstrap) =="
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$TMP" 2>&1)"
 assert_file "AGENTS.md written" "$TMP/AGENTS.md"
 assert_file "HARNESS.md written" "$TMP/HARNESS.md"
 assert_file "state written" "$TMP/.agent-blueprint.yaml"
+assert_dir "cursor from bootstrap install" "$TMP/.cursor/commands"
 assert_contains "gitignore ignores .agents/" "$(cat "$TMP/.gitignore")" $'.agents/'
 assert_contains "gitignore ignores .testiny/" "$(cat "$TMP/.gitignore")" $'.testiny/'
-assert_line "init gitignore rebases .cursor/" "$TMP/.gitignore" ".cursor/"
-assert_line "init gitignore rebases .claude/" "$TMP/.gitignore" ".claude/"
-assert_line "init gitignore rebases .agents/" "$TMP/.gitignore" ".agents/"
-assert_not_contains "init gitignore has no placeholder" "$(cat "$TMP/.gitignore")" "{{RUNTIME_IGNORES}}"
-assert_contains "init summary" "$out" "Blueprint synchronization completed"
-assert_contains "init harness banner" "$out" "Blueprint initialized"
+assert_line "install gitignore rebases .cursor/" "$TMP/.gitignore" ".cursor/"
+assert_line "install gitignore rebases .claude/" "$TMP/.gitignore" ".claude/"
+assert_line "install gitignore rebases .agents/" "$TMP/.gitignore" ".agents/"
+assert_not_contains "install gitignore has no placeholder" "$(cat "$TMP/.gitignore")" "{{RUNTIME_IGNORES}}"
+assert_contains "install summary" "$out" "Blueprint synchronization completed"
+assert_contains "install harness banner" "$out" "Blueprint initialized"
 assert_contains "managed harness markers" "$(cat "$TMP/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:START -->"
 assert_contains "run id present" "$out" "Run  bp-"
 assert_not_contains "no ANSI clear in CI" "$out" $'\033[2J'
+set +e
+out_init="$(CI=1 NO_COLOR=1 "$BP" init --target "$TMP" 2>&1)"
+rc_init=$?
+set -e
+assert_eq "init command removed" "$rc_init" "1"
+assert_contains "init points to install" "$out_init" "init was removed"
+
+echo "== auth =="
+out="$(CI=1 NO_COLOR=1 "$BP" auth --help 2>&1)"
+assert_contains "auth help mentions login" "$out" "login github"
+out="$(CI=1 NO_COLOR=1 "$BP" auth git --name "Blueprint Tester" --email "tester@example.com" 2>&1)"
+assert_contains "auth git saved" "$out" "saved git identity"
+assert_file "git identity file" "${XDG_CONFIG_HOME}/blueprint/credentials/git"
+assert_contains "identity name" "$(cat "${XDG_CONFIG_HOME}/blueprint/credentials/git")" "name=Blueprint Tester"
+assert_contains "identity email" "$(cat "${XDG_CONFIG_HOME}/blueprint/credentials/git")" "email=tester@example.com"
+out="$(CI=1 NO_COLOR=1 "$BP" auth status 2>&1)"
+assert_contains "auth status shows identity" "$out" "tester@example.com"
+auth_t="${TMP}-auth"
+saved_targets_auth="$BLUEPRINT_TARGETS_FILE"
+export BLUEPRINT_TARGETS_FILE="${TMP}-auth-targets.json"
+rm -rf "$auth_t" "$BLUEPRINT_TARGETS_FILE"
+mkdir -p "$auth_t"
+git -C "$auth_t" init -q
+git -C "$auth_t" config user.email "before@example.com"
+git -C "$auth_t" config user.name "Before"
+out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$auth_t" 2>&1)"
+assert_contains "install applied git name" "$out" "git user.name"
+assert_eq "local user.name from blueprint" "$(git -C "$auth_t" config --local user.name)" "Blueprint Tester"
+assert_eq "local user.email from blueprint" "$(git -C "$auth_t" config --local user.email)" "tester@example.com"
+set +e
+out="$(CI=1 NO_COLOR=1 "$BP" doctor --target "$auth_t" 2>&1)"
+set -e
+assert_contains "doctor reports git identity" "$out" "git identity"
+rm -rf "$auth_t" "$BLUEPRINT_TARGETS_FILE"
+export BLUEPRINT_TARGETS_FILE="$saved_targets_auth"
 
 echo "== install =="
 out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$TMP" 2>&1)"
@@ -159,7 +195,7 @@ export BLUEPRINT_TARGETS_FILE="${TMP}-merge-targets.json"
 merge_t="${TMP}-merge"
 rm -rf "$merge_t"
 mkdir -p "$merge_t"
-CI=1 NO_COLOR=1 "$BP" init --target "$merge_t" >/dev/null
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$merge_t" >/dev/null
 out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --skill-mode merge --target "$merge_t" 2>&1)"
 assert_contains "merge install completed" "$out" "Blueprint synchronization completed"
 assert_contains "state skill_mode merge" "$(cat "$merge_t/.agent-blueprint.yaml")" "skill_mode: merge"
@@ -187,7 +223,7 @@ assert_not_line "rebase switch drops skill glob" "$merge_t/.gitignore" ".cursor/
 merge_c="${TMP}-merge-claude"
 rm -rf "$merge_c"
 mkdir -p "$merge_c"
-CI=1 NO_COLOR=1 "$BP" init --target "$merge_c" >/dev/null
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$merge_c" >/dev/null
 CI=1 NO_COLOR=1 "$BP" install default --runtime claude --skill-mode merge --target "$merge_c" >/dev/null
 assert_line "merge claude rule is .md" "$merge_c/.gitignore" ".claude/rules/task-execution.md"
 assert_not_line "merge claude rule is not .mdc" "$merge_c/.gitignore" ".claude/rules/task-execution.mdc"
@@ -195,7 +231,7 @@ assert_not_line "merge claude rule is not .mdc" "$merge_c/.gitignore" ".claude/r
 merge_g="${TMP}-merge-gitlab"
 rm -rf "$merge_g"
 mkdir -p "$merge_g"
-CI=1 NO_COLOR=1 "$BP" init --target "$merge_g" >/dev/null
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$merge_g" >/dev/null
 CI=1 NO_COLOR=1 "$BP" install engineering --overlay gitlab --runtime cursor --skill-mode merge --target "$merge_g" >/dev/null
 assert_line "merge gitlab overlay command ignored" "$merge_g/.gitignore" ".cursor/commands/pr.md"
 
@@ -294,6 +330,11 @@ assert_file "history jsonl" "$hist"
 assert_contains "history has runId" "$(head -1 "$hist")" '"runId"'
 
 echo "== targets registry =="
+# Isolate from earlier install noise on the shared targets file.
+saved_targets_registry="$BLUEPRINT_TARGETS_FILE"
+export BLUEPRINT_TARGETS_FILE="${TMP}-targets-registry.json"
+rm -f "$BLUEPRINT_TARGETS_FILE"
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$TMP" >/dev/null 2>&1
 assert_file "targets.json written" "$BLUEPRINT_TARGETS_FILE"
 assert_contains "targets has path" "$(cat "$BLUEPRINT_TARGETS_FILE")" "$TMP"
 assert_contains "targets has version" "$(cat "$BLUEPRINT_TARGETS_FILE")" '"version"'
@@ -301,23 +342,24 @@ assert_contains "targets has version" "$(cat "$BLUEPRINT_TARGETS_FILE")" '"versi
 other="${TMP}-other"
 rm -rf "$other"
 mkdir -p "$other"
-CI=1 NO_COLOR=1 "$BP" init --target "$other" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$other" >/dev/null 2>&1
 tg="$(cat "$BLUEPRINT_TARGETS_FILE")"
 assert_contains "targets has second path" "$tg" "$other"
 # Count path entries (should be 2 unique).
 path_count="$(printf '%s' "$tg" | grep -c '"path"' || true)"
 assert_eq "targets unique count" "$path_count" "2"
-# Re-init same target should not duplicate.
-CI=1 NO_COLOR=1 "$BP" init --target "$TMP" >/dev/null 2>&1
+# Re-install same target should not duplicate.
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$TMP" >/dev/null 2>&1
 path_count="$(grep -c '"path"' "$BLUEPRINT_TARGETS_FILE" || true)"
 assert_eq "targets upsert no duplicate" "$path_count" "2"
-rm -rf "$other"
+rm -rf "$other" "$BLUEPRINT_TARGETS_FILE"
+export BLUEPRINT_TARGETS_FILE="$saved_targets_registry"
 
 echo "== install codex =="
 codex_t="${TMP}-codex"
 rm -rf "$codex_t"
 mkdir -p "$codex_t"
-CI=1 NO_COLOR=1 "$BP" init --target "$codex_t" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$codex_t" >/dev/null 2>&1
 out="$(CI=1 NO_COLOR=1 "$BP" install default --runtime codex --target "$codex_t" 2>&1)"
 assert_contains "codex install completed" "$out" "Blueprint synchronization completed"
 assert_dir "codex skills" "$codex_t/.agents/skills"
@@ -372,7 +414,7 @@ cp -R "${ROOT}/lib/blueprint" "${src_repo}/lib/"
 consumer="${TMP}-remote-consumer"
 rm -rf "$consumer"
 mkdir -p "$consumer"
-CI=1 NO_COLOR=1 "$BP" init --target "$consumer" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$consumer" >/dev/null 2>&1
 abs_src="$(cd "$src_repo" && pwd)"
 pkg_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
 cat > "${consumer}/.agent-blueprint.yaml" <<EOF
@@ -395,12 +437,17 @@ echo "== del =="
 del_t="${TMP}-del"
 rm -rf "$del_t"
 mkdir -p "$del_t"
-CI=1 NO_COLOR=1 "$BP" init --target "$del_t" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$del_t" >/dev/null 2>&1
 CI=1 NO_COLOR=1 "$BP" install default --runtime all --target "$del_t" >/dev/null 2>&1
 printf 'keep this planning\n' > "$del_t/PLANNING.md"
 printf 'user note\n' > "$del_t/AGENTS.md"
-# Re-inject harness ref so del has something to strip
-CI=1 NO_COLOR=1 "$BP" init --target "$del_t" >/dev/null 2>&1
+# Inject managed harness ref so del has something to strip (re-install preserves AGENTS.md).
+cat >> "$del_t/AGENTS.md" <<'EOF'
+<!-- BLUEPRINT:HARNESS:START -->
+## Shared Harness
+See [`HARNESS.md`](./HARNESS.md).
+<!-- BLUEPRINT:HARNESS:END -->
+EOF
 assert_contains "agents has ref before del" "$(cat "$del_t/AGENTS.md")" "<!-- BLUEPRINT:HARNESS:START -->"
 assert_file "harness before del" "$del_t/HARNESS.md"
 assert_dir "cursor before del" "$del_t/.cursor"
@@ -437,7 +484,7 @@ echo "== del preserves custom skills =="
 custom_t="${TMP}-del-custom"
 rm -rf "$custom_t"
 mkdir -p "$custom_t"
-CI=1 NO_COLOR=1 "$BP" init --target "$custom_t" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$custom_t" >/dev/null 2>&1
 CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --skill-mode merge --target "$custom_t" >/dev/null 2>&1
 mkdir -p "$custom_t/.cursor/skills/my-local-skill" "$custom_t/.cursor/skills/memory-system-protocol"
 printf '# custom skill\n' > "$custom_t/.cursor/skills/my-local-skill/SKILL.md"
@@ -454,8 +501,8 @@ assert_not_file "obsolete renamed skill removed" "$custom_t/.cursor/skills/memor
 assert_not_file "blueprint start command removed" "$custom_t/.cursor/commands/start.md"
 rm -rf "$custom_t"
 
-# Help documents keyword-only del
-help_out="$(CI=1 NO_COLOR=1 "$BP" help 2>&1)"
+# Help documents keyword-only del. Run with --target package so contributor help shows.
+help_out="$(CI=1 NO_COLOR=1 "$BP" help --target "$ROOT" 2>&1)"
 assert_contains "help lists del" "$help_out" "del"
 assert_contains "help lists rm alias" "$help_out" "rm | del"
 assert_contains "help lists skill-mode" "$help_out" "--skill-mode"
@@ -466,13 +513,15 @@ assert_contains "help force example" "$help_out" "update --force --target"
 assert_contains "help menu force note" "$help_out" 'Typing "update --force" in the'
 assert_contains "help lists clean" "$help_out" "clean"
 assert_contains "help clean example" "$help_out" "clean --force --target"
+help_consumer="$(CI=1 NO_COLOR=1 "$BP" help --target "$TMP" 2>&1)"
+assert_not_contains "help hides contributor for consumer" "$help_consumer" "install-contributor"
 rm -rf "$del_t"
 
 echo "== clean backups =="
 clean_t="${TMP}-clean"
 rm -rf "$clean_t"
 mkdir -p "$clean_t/.cursor/commands"
-CI=1 NO_COLOR=1 "$BP" init --target "$clean_t" >/dev/null 2>&1
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$clean_t" >/dev/null 2>&1
 CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$clean_t" >/dev/null 2>&1
 printf 'old local\n' > "$clean_t/.cursor/commands/start.md.blueprint-backup.20260813T000000Z"
 printf 'old local2\n' > "$clean_t/.cursor/commands/review.md.blueprint-backup.20260813T000000Z"
@@ -499,28 +548,54 @@ out="$(CI=1 NO_COLOR=1 "$BP" install-contributor --runtime cursor --target "$TMP
 rc=$?
 set -e
 assert_eq "install-contributor rejects consumer target" "$rc" "1"
-assert_contains "install-contributor package-only msg" "$out" "only runs against the package root"
+assert_contains "install-contributor package-only msg" "$out" "blueprint package checkouts only"
 assert_eq "consumer has no contributor-standards" \
   "$([[ -f "$TMP/.cursor/rules/contributor-standards.mdc" ]] && echo yes || echo no)" "no"
 
-# Project into package root (gitignored), verify doctor, then clean up.
+# Package root without prior install must fail (add-on on top of install).
 rm -rf "${ROOT}/.cursor" "${ROOT}/.claude" "${ROOT}/.agents"
-rm -f "${ROOT}/.agent-blueprint.local.yaml"
+rm -f "${ROOT}/.agent-blueprint.local.yaml" "${ROOT}/.agent-blueprint.yaml"
+set +e
+out="$(CI=1 NO_COLOR=1 "$BP" install-contributor --runtime cursor --target "$ROOT" 2>&1)"
+rc=$?
+set -e
+assert_eq "install-contributor needs install first" "$rc" "1"
+assert_contains "install-contributor install-first msg" "$out" "run install first"
+
+# Install harness, then layer contributor add-on (gitignored), verify doctor, clean up.
+# Preserve committed package AGENTS.md (install may reconcile harness markers).
+agents_bak="$(mktemp "${TMP}.agents.bak.XXXXXX")"
+cp "${ROOT}/AGENTS.md" "$agents_bak"
+rm -rf "${ROOT}/.cursor" "${ROOT}/.claude" "${ROOT}/.agents"
+rm -f "${ROOT}/.agent-blueprint.local.yaml" "${ROOT}/.agent-blueprint.yaml"
+rm -f "${ROOT}/HARNESS.md" "${ROOT}/PLANNING.md" "${ROOT}/DECISIONS.md" "${ROOT}/RUN_LOG.md" \
+  "${ROOT}/HOTCACHE.md" "${ROOT}/LEARNING.md" "${ROOT}/ANTI-PATTERNS.md"
+CI=1 NO_COLOR=1 "$BP" install default --runtime cursor --target "$ROOT" >/dev/null 2>&1
 out="$(CI=1 NO_COLOR=1 "$BP" install-contributor --runtime cursor --target "$ROOT" 2>&1)"
 assert_contains "install-contributor completed" "$out" "Blueprint synchronization completed"
+assert_contains "install-contributor add-on note" "$out" "contributor add-on"
 assert_file "contributor commit command" "$ROOT/.cursor/commands/commit.md"
 assert_file "contributor pr command" "$ROOT/.cursor/commands/pr.md"
 assert_file "contributor standards rule" "$ROOT/.cursor/rules/contributor-standards.mdc"
 assert_file "skill-creator projected" "$ROOT/.cursor/skills/skill-creator/SKILL.md"
+assert_file "update-changelog projected" "$ROOT/.cursor/skills/update-changelog/SKILL.md"
 assert_file "contributor local marker" "$ROOT/.agent-blueprint.local.yaml"
 assert_contains "marker profile" "$(cat "$ROOT/.agent-blueprint.local.yaml")" "package-contributor"
 assert_contains "contributor commit no jira" "$(cat "$ROOT/.cursor/commands/commit.md")" "No JIRA"
+set +e
 out="$(CI=1 NO_COLOR=1 "$BP" doctor --target "$ROOT" 2>&1)"
+set -e
 assert_contains "doctor healthy with contributor runtime" "$out" "Healthy"
 assert_contains "doctor allows local cursor" "$out" "package-contributor local runtime"
 rm -rf "${ROOT}/.cursor" "${ROOT}/.claude" "${ROOT}/.agents"
-rm -f "${ROOT}/.agent-blueprint.local.yaml"
+rm -f "${ROOT}/.agent-blueprint.local.yaml" "${ROOT}/.agent-blueprint.yaml"
+rm -f "${ROOT}/HARNESS.md" "${ROOT}/PLANNING.md" "${ROOT}/DECISIONS.md" "${ROOT}/RUN_LOG.md" \
+  "${ROOT}/HOTCACHE.md" "${ROOT}/LEARNING.md" "${ROOT}/ANTI-PATTERNS.md"
+cp "$agents_bak" "${ROOT}/AGENTS.md"
+rm -f "$agents_bak"
+set +e
 out="$(CI=1 NO_COLOR=1 "$BP" doctor --target "$ROOT" 2>&1)"
+set -e
 assert_contains "doctor healthy after contributor cleanup" "$out" "Healthy"
 
 echo

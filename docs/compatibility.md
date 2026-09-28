@@ -57,7 +57,7 @@ Pack trees (`harness/`, `templates/`, `blueprints/`, `prompts/`, `examples/`) li
 ## How adopting projects work
 
 1. Install the CLI (Homebrew or git checkout), then `blueprint assets install core`.
-2. Run `blueprint init --target /path/to/repo` — writes `HARNESS.md`, injects a managed harness reference into `AGENTS.md` or existing `agents.md`, memory skeletons, and a managed `.gitignore` section. Does **not** modify existing `CLAUDE.md`.
+2. Run `blueprint install default --runtime all --target /path/to/repo` — writes `HARNESS.md`, injects a managed harness reference into `AGENTS.md` or existing `agents.md`, memory skeletons, and a managed `.gitignore` section. Does **not** modify existing `CLAUDE.md`.
 3. Run `blueprint install <blueprint> --runtime all --target /path/to/repo` — projects pack `harness/` into `.cursor/`, `.claude/`, and/or `.agents/`. `--skill-mode rebase` (default) gitignores those whole runtime dirs; `--skill-mode merge` gitignores only the blueprint-projected skills, commands, rules, and templates.
 4. Local overrides (`*.local.md`, `*.local.mdc`, `.agent-blueprint.local.yaml`) always win over managed files.
 5. Memory state files are never overwritten by install/sync when they already exist in the target.

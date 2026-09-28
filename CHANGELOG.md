@@ -9,13 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `blueprint switch <profile>` (+ TUI menu **7) switch**) to change install profile while keeping runtimes/skill-mode from state
+- `blueprint auth` — one-time GitHub/GitLab login (wraps `gh`/`glab`) plus `auth git` identity stored under `~/.config/blueprint/credentials/git`; `install` applies it as local `git config`; `doctor` reports auth status
+- `blueprint switch <profile>` (+ TUI menu **6) switch**) to change install profile while keeping runtimes/skill-mode from state
+- Contributor skill `update-changelog` (projected by `install-contributor`) — Keep a Changelog workflow for package repos; `CHANGELOG.md` required on harness / assets / homebrew
 - Docs: `docs/profiles.md` — `default` / `engineering` / `product` differences and how to switch
 - Docs: [docs/release-workflow.md](docs/release-workflow.md) — human-triggered pre-release → production + Formula auto-merge
 - Workflow: **CLI Pre-release** (non-production / not latest / no Formula) before **CLI Release** (latest + Formula)
 
 ### Changed
 
+- Docs architecture: merged `docs/distribution.md` into `docs/release.md`; indexes and README links updated; `SECURITY.md` points at `krerapus` + 1.5.x
+- Dropped redundant `builtin/VERSION`; packaging checks root `VERSION` only (CLI semver SoT)
+- Merged former `init` into `install`: one command bootstraps harness + projects runtimes. `blueprint init` errors with a pointer to `install`.
+- `install-contributor` is optional and only for blueprint package checkouts (`agent-harness-blueprint`, `assets-blueprint`, `homebrew-blueprint`); requires prior `install` and layers contributor skills/standards on top. Menu **7) contrib** and help text appear only when the target matches.
 - Profile rename: `startup` → **`product`** (CLI accepts `startup` as a legacy alias and rewrites state to `product`)
 - Removed in-tree pack mirrors (`harness/`, `templates/`, `blueprints/`, `prompts/`, `examples/`); packs resolve only via sibling `assets-blueprint` / `BLUEPRINT_ASSETS_ROOT` / XDG cache. `builtin/` remains for offline CLI bootstrap.
 - CLI + assets releases are **human-triggered** (`workflow_dispatch` only); tag push no longer starts release CI
@@ -25,11 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Production CLI release pipeline: `scripts/package-release.sh`, `scripts/verify-release-archive.sh`, `scripts/bump-homebrew-formula.sh`, and rewritten `.github/workflows/cli-release.yml` (manual dispatch → test → package → GitHub Release → Formula auto-merge)
-- Docs: `docs/release.md`, `docs/distribution.md`, `docs/homebrew.md`
+- Docs: `docs/release.md`, `docs/homebrew.md`
 - Test: `tests/cli/package-release.sh` (artifact presence, checksum integrity, formula bump)
 - Three-repo architecture: CLI (`agent-harness-blueprint`), assets (`assets-blueprint`), Homebrew tap (`homebrew-blueprint`) — see `docs/architecture-split.md`
 - `blueprint assets {list,install,update,doctor}` Asset Manager with XDG cache (`~/.cache/blueprint/assets/`) and sibling `assets-blueprint` discovery
-- `builtin/` offline bootstrap templates for Homebrew / airplane-mode `init`
+- `builtin/` offline bootstrap templates for Homebrew / airplane-mode `install`
 - XDG config defaults under `~/.config/blueprint/`; `targets.json` prefers `~/.local/share/blueprint/`
 - Consumer state pins `assets.core` alongside CLI `version`
 - GitHub Actions: `cli-release.yml` (multi-arch archives + formula bump PR)
@@ -72,5 +78,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Harness skills, workflow, and TUI refinements for install/sync flows
 
-[Unreleased]: https://github.com/Supparerk23/agent-harness-blueprint/compare/v1.2.0...HEAD
-[1.2.0]: https://github.com/Supparerk23/agent-harness-blueprint/releases/tag/v1.2.0
+[Unreleased]: https://github.com/krerapus/agent-harness-blueprint/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/krerapus/agent-harness-blueprint/releases/tag/v1.2.0

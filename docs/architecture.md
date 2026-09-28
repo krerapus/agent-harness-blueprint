@@ -27,8 +27,8 @@ flowchart LR
   end
 
   runtime -->|"assets install"| core
-  runtime -->|"init"| agents
-  runtime -->|"init"| memory
+  runtime -->|"install"| agents
+  runtime -->|"install"| memory
   builtin -->|"offline bootstrap"| agents
   core -->|"install --runtime"| cursor
   core -->|"install --runtime"| claude

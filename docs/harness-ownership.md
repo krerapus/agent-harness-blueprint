@@ -4,7 +4,7 @@ How `HARNESS.md` relates to root instruction files (`AGENTS.md` / `agents.md` / 
 
 ## Ownership model
 
-| File or section | Owner | `init` may modify | `update` may modify |
+| File or section | Owner | `install` may modify | `update` may modify |
 |---|---|---|---|
 | `HARNESS.md` | Blueprint Service | Yes | Yes |
 | Managed runtime projections (`.cursor/` / `.claude/` / `.agents/`) | Blueprint Service | via `install` | Yes (when runtimes declared) |
@@ -32,9 +32,9 @@ Rules:
 - If both `AGENTS.md` and `agents.md` exist, select `AGENTS.md`, leave `agents.md` untouched, emit a non-fatal warning
 - If both `CLAUDE.md` and `claude.md` exist, select by the same precedence ladder (Claude files only win when no agents file exists)
 - Never create `CLAUDE.md` / `claude.md` automatically
-- `templates/entrypoints/CLAUDE.md` is the canonical Claude reference template for humans; it is not written by `init`
+- `templates/entrypoints/CLAUDE.md` is the canonical Claude reference template for humans; it is not written by `install`
 
-## Initialization (`blueprint init`)
+## Initialization (`blueprint install`)
 
 1. Detect root instruction files by precedence (report Claude presence)
 2. Create or safely install root `HARNESS.md` from `templates/entrypoints/HARNESS.md`
@@ -51,7 +51,7 @@ Managed reference markers (stable):
 <!-- BLUEPRINT:HARNESS:END -->
 ```
 
-The compact block only **references** Blueprint-managed files (`HARNESS.md`, memory trackers). It does not duplicate full harness context. Only content between the markers is Blueprint-owned. Everything else is preserved byte-for-byte aside from the smallest patch needed to add or replace that block. Re-running `init` never duplicates the block.
+The compact block only **references** Blueprint-managed files (`HARNESS.md`, memory trackers). It does not duplicate full harness context. Only content between the markers is Blueprint-owned. Everything else is preserved byte-for-byte aside from the smallest patch needed to add or replace that block. Re-running `install` never duplicates the block.
 
 ### Existing `HARNESS.md`
 
@@ -60,7 +60,7 @@ The compact block only **references** Blueprint-managed files (`HARNESS.md`, mem
 
 ### Malformed markers
 
-If only `START` or only `END` is present (or duplicates), `init` leaves the instruction file unchanged and warns. Repair markers manually, then re-run `init`. The service does not guess how to splice a broken region.
+If only `START` or only `END` is present (or duplicates), `install` leaves the instruction file unchanged and warns. Repair markers manually, then re-run `install`. The service does not guess how to splice a broken region.
 
 ## Update (`blueprint update`)
 
@@ -81,7 +81,7 @@ Does **not** modify:
 
 - `AGENTS.md` / `agents.md` / `CLAUDE.md` / `claude.md`
 
-even when the managed reference block is missing or outdated. Reconcile the reference block with `blueprint init` (or a future dedicated repair command), not `update`.
+even when the managed reference block is missing or outdated. Reconcile the reference block with `blueprint install` (or a future dedicated repair command), not `update`.
 
 `sync` remains available to re-apply the installed blueprint without the version-gated update UX (still applies rename cleanup, but uses preserve-local copy semantics for skill files).
 
@@ -89,9 +89,9 @@ even when the managed reference block is missing or outdated. Reconcile the refe
 
 | Situation | Action |
 |---|---|
-| Missing harness reference | `blueprint init --target .` |
-| Malformed markers | Fix or remove the partial markers by hand, then `init` |
-| Unmanaged `HARNESS.md` | Migrate content, then `init --force` / `update --force` to backup + replace |
+| Missing harness reference | `blueprint install default --runtime all --target .` |
+| Malformed markers | Fix or remove the partial markers by hand, then `install` |
+| Unmanaged `HARNESS.md` | Migrate content, then `install --force` / `update --force` to backup + replace |
 | Need runtime projections | `blueprint sync` (still does not rewrite agent instruction files) |
 
 Filesystem remains the source of truth; `.agent-blueprint.yaml` records harness/agents metadata for humans and tooling but is not required for detection.
