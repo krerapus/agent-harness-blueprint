@@ -9,57 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `blueprint auth` — one-time GitHub/GitLab login (wraps `gh`/`glab`) plus `auth git` identity stored under `~/.config/blueprint/credentials/git`; `install` applies it as local `git config`; `doctor` reports auth status
-- `blueprint switch <profile>` (+ TUI menu **6) switch**) to change install profile while keeping runtimes/skill-mode from state
-- Contributor skill `update-changelog` (projected by `install-contributor`) — Keep a Changelog workflow for package repos; `CHANGELOG.md` required on harness / assets / homebrew
-- Docs: `docs/profiles.md` — `default` / `engineering` / `product` differences and how to switch
-- Docs: [docs/release-workflow.md](docs/release-workflow.md) — human-triggered pre-release → production + Formula auto-merge
-- Workflow: **CLI Pre-release** (non-production / not latest / no Formula) before **CLI Release** (latest + Formula)
-
 ### Changed
 
-- Docs architecture: merged `docs/distribution.md` into `docs/release.md`; indexes and README links updated; `SECURITY.md` points at `krerapus` + 1.5.x
-- Dropped redundant `builtin/VERSION`; packaging checks root `VERSION` only (CLI semver SoT)
-- `package-release.sh` / `verify-release-archive.sh` allow `VERSION-rc.N` artifact names while `./VERSION` stays on the base semver (CLI Pre-release)
-- Merged former `init` into `install`: one command bootstraps harness + projects runtimes. `blueprint init` errors with a pointer to `install`.
-- `install-contributor` is optional and only for blueprint package checkouts (`agent-harness-blueprint`, `assets-blueprint`, `homebrew-blueprint`); requires prior `install` and layers contributor skills/standards on top. Menu **7) contrib** and help text appear only when the target matches.
-- Profile rename: `startup` → **`product`** (CLI accepts `startup` as a legacy alias and rewrites state to `product`)
-- Removed in-tree pack mirrors (`harness/`, `templates/`, `blueprints/`, `prompts/`, `examples/`); packs resolve only via sibling `assets-blueprint` / `BLUEPRINT_ASSETS_ROOT` / XDG cache. `builtin/` remains for offline CLI bootstrap.
-- CLI + assets releases are **human-triggered** (`workflow_dispatch` only); tag push no longer starts release CI
-- Two-step publish: Pre-release (test) then Release (production / latest); only CLI Release bumps Formula
-- CLI Release checks out `assets-blueprint` for smoke, creates `vVERSION` tag, and **auto-merges** the Homebrew Formula PR when `bump_formula=true`
+### Fixed
+
+## [1.5.0] - 2026-09-29
 
 ### Added
 
-- Production CLI release pipeline: `scripts/package-release.sh`, `scripts/verify-release-archive.sh`, `scripts/bump-homebrew-formula.sh`, and rewritten `.github/workflows/cli-release.yml` (manual dispatch → test → package → GitHub Release → Formula auto-merge)
-- Docs: `docs/release.md`, `docs/homebrew.md`
-- Test: `tests/cli/package-release.sh` (artifact presence, checksum integrity, formula bump)
-- Three-repo architecture: CLI (`agent-harness-blueprint`), assets (`assets-blueprint`), Homebrew tap (`homebrew-blueprint`) — see `docs/architecture-split.md`
-- `blueprint assets {list,install,update,doctor}` Asset Manager with XDG cache (`~/.cache/blueprint/assets/`) and sibling `assets-blueprint` discovery
-- `builtin/` offline bootstrap templates for Homebrew / airplane-mode `install`
-- XDG config defaults under `~/.config/blueprint/`; `targets.json` prefers `~/.local/share/blueprint/`
+- `blueprint auth` — one-time GitHub/GitLab login (wraps `gh`/`glab`) plus `auth git` identity under `~/.config/blueprint/credentials/git`; `install` applies local `git config`; `doctor` reports auth status
+- `blueprint switch <profile>` (+ TUI menu **6) switch**) to change install profile while keeping runtimes/skill-mode from state
+- Contributor skill `update-changelog` (via `install-contributor`) — Keep a Changelog workflow for package repos
+- Docs: `docs/profiles.md`, [docs/release-workflow.md](docs/release-workflow.md), [docs/release.md](docs/release.md), [docs/homebrew.md](docs/homebrew.md)
+- Human-triggered **CLI Pre-release** then **CLI Release** (production / latest + Formula auto-merge)
+- Production packaging: `scripts/package-release.sh`, `scripts/verify-release-archive.sh`, `scripts/bump-homebrew-formula.sh`, `tests/cli/package-release.sh`
+- Three-repo architecture: CLI, assets (`assets-blueprint`), Homebrew tap — see `docs/architecture-split.md`
+- `blueprint assets {list,install,update,doctor}` with XDG cache and sibling `assets-blueprint` discovery
+- `builtin/` offline bootstrap templates; XDG config under `~/.config/blueprint/`
 - Consumer state pins `assets.core` alongside CLI `version`
-- GitHub Actions: `cli-release.yml` (multi-arch archives + formula bump PR)
-- `rm` is an alias for `del` (`./blueprint rm --force --target …`); interactive confirm accepts `rm` or `del`
-- `--skill-mode rebase|merge` on `install` / `sync` / `update` — `rebase` gitignores entire `.cursor/` / `.claude/` / `.agents/`; `merge` gitignores only blueprint-projected skills, commands, rules, and templates so local runtime files stay commitable. Interactive install prompts after runtime; state stores `skill_mode`.
-- `generate-test-cases` skill — Senior QA playbook that writes Testiny-importable CSV test suites for a software change (manual / opt-in); renamed from `testcase-generator` for action-first naming
-- Skill naming standard (`docs/standards/skill-naming.md`) enforced via skill-creator + contributor gate; `doctor` validates package skill names
-- `update-api-docs` skill — sync FastAPI `docs/api/openapi.yaml` and response examples with `app/routers/`
-- Conflict overwrite UX: project-level conflict warnings, interactive TTY prompt to apply `*.blueprint-conflict` siblings, target-picker status, and `doctor` warnings for unresolved siblings
-- Successful package writes remove stale `*.blueprint-conflict` siblings for that path (so `--force` / managed refresh clears doctor conflict noise)
-- `blueprint clean` deletes reviewed `*.blueprint-backup.*` leftovers; Known projects prefixes Name with status icons (`✓` / `↓` / `!` / `*`)
-- Package-only contributor harness under `contributor/` (commit without JIRA, GitHub PR + release notes, skill-creator gate)
-- `blueprint install-contributor` for optional local IDE projection of contributor playbooks
-- Community health files for open-source adoption (license, contributing guide, code of conduct, security policy, GitHub templates)
+- `--skill-mode rebase|merge` on `install` / `sync` / `update`
+- Skills: `generate-test-cases`, `update-api-docs`; skill naming standard + `doctor` name checks
+- Conflict overwrite UX, `blueprint clean`, Known-projects status icons
+- Package-only contributor harness (`contributor/`) and `blueprint install-contributor`
+- Community health files (license, contributing, code of conduct, security, GitHub templates)
+- `rm` alias for `del`
 
 ### Changed
 
-- `del` removes only blueprint-projected skills/commands/rules/templates under `.cursor/` / `.claude/` / `.agents/`; custom user skills and other local runtime files are kept, and empty runtime dirs are pruned
-- `--runtime codex` projects into `.agents/` (Codex reads skills from `.agents/skills/`); `--runtime all` includes Cursor, Claude, and Codex
-- `generate-test-cases` always writes CSV under `.testiny/` (gitignored); no Downloads prompt
-- `generate-test-cases` canonical Testiny header now matches the live import (`Section` instead of `Component`; fill-rule examples for `Active?`, `Priority`, `Sprint`)
-- `--force` help text clarifies it overwrites unmanaged conflicting runtime files (not only `del`)
-- Success summary prints an explicit Conflict count when conflicts occurred
+- Merged former `init` into `install` (one-step harness + runtime bootstrap); `blueprint init` errors with a pointer to `install`
+- `install-contributor` only for blueprint package checkouts; requires prior `install`
+- Profile rename: `startup` → **`product`** (`startup` kept as legacy alias)
+- Removed in-tree pack mirrors; packs resolve via assets checkout / cache only
+- Docs SoT cleanup: merged `distribution.md` into `release.md`; `SECURITY.md` → `krerapus` + 1.5.x
+- Dropped redundant `builtin/VERSION`; packaging allows `VERSION-rc.N` artifact names while `./VERSION` stays on the base semver
+- `del` keeps non-blueprint runtime files; `--runtime codex` → `.agents/`; `--runtime all` includes Codex
+- `generate-test-cases` writes under `.testiny/`; Testiny header uses `Section`
+- Releases are `workflow_dispatch` only; CLI Release auto-merges Homebrew Formula when `bump_formula=true`
 
 ## [1.2.0] - 2026-08-03
 
@@ -79,5 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Harness skills, workflow, and TUI refinements for install/sync flows
 
-[Unreleased]: https://github.com/krerapus/agent-harness-blueprint/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/krerapus/agent-harness-blueprint/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/krerapus/agent-harness-blueprint/releases/tag/v1.5.0
 [1.2.0]: https://github.com/krerapus/agent-harness-blueprint/releases/tag/v1.2.0
