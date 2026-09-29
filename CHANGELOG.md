@@ -9,11 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-### Changed
-
-### Fixed
+- `scripts/render-release-notes.sh` — compact GitHub Release notes from CHANGELOG `### Highlights` (wired into CLI Release / Pre-release)
 
 ## [1.5.0] - 2026-09-29
+
+### Highlights
+
+- `install` now bootstraps harness + runtimes (former `init` removed)
+- `blueprint auth` for one-time GitHub/GitLab + git identity
+- `blueprint assets` for independently versioned packs
+- `switch` profile + `product` profile (replaces `startup`)
+- Pre-release → production workflow; Formula auto-bump on CLI Release
 
 ### Added
 
