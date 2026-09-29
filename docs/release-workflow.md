@@ -93,6 +93,8 @@ gh workflow run "Assets Release" --repo krerapus/assets-blueprint \
 
 Produces archives named `blueprint_1.5.0-rc.1_*.tar.gz`. Marked **Pre-release** on GitHub. **Does not** touch Homebrew.
 
+Release notes are rendered by `scripts/render-release-notes.sh` from `CHANGELOG.md` (`### Highlights` when present).
+
 ```bash
 gh workflow run "CLI Pre-release" --repo krerapus/agent-harness-blueprint \
   -f confirm=1.5.0 -f pre_label=rc.1 -f dry_run=false

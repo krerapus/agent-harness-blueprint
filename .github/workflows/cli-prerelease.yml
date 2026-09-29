@@ -164,13 +164,19 @@ jobs:
             test -f "$a" || { echo "missing $a" >&2; exit 1; }
           done
 
+          chmod +x scripts/render-release-notes.sh
+          ./scripts/render-release-notes.sh --kind cli --version "$BASE" --pre-label "${VER#"${BASE}-"}" \
+            --out /tmp/blueprint-prerelease-notes.md
+
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${assets[@]}" --clobber
-            gh release edit "$TAG" --prerelease --latest=false
+            gh release edit "$TAG" --prerelease --latest=false \
+              --title "Blueprint CLI ${VER} (pre-release)" \
+              --notes-file /tmp/blueprint-prerelease-notes.md
           else
             gh release create "$TAG" "${assets[@]}" \
               --title "Blueprint CLI ${VER} (pre-release)" \
-              --notes "Non-production build for testing (base VERSION ${BASE}). Not Homebrew. When ready, run **CLI Release** for v${BASE}." \
+              --notes-file /tmp/blueprint-prerelease-notes.md \
               --prerelease \
               --verify-tag
           fi
