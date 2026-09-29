@@ -5,6 +5,8 @@
 #   ./scripts/package-release.sh [VERSION]
 #
 # VERSION defaults to contents of ./VERSION (must match git tag vVERSION when releasing).
+# Pre-release: pass VERSION-<label> (e.g. 1.5.0-rc.1); ./VERSION stays on the base semver.
+# Artifact names use the package version; the VERSION file inside the archive stays ./VERSION.
 # Writes under dist/:
 #   blueprint_<VER>_darwin_arm64.tar.gz
 #   blueprint_<VER>_darwin_amd64.tar.gz
@@ -41,10 +43,14 @@ if [[ ! "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.]+)?$ ]]; then
 fi
 
 FILE_VER="$(tr -d '[:space:]' < VERSION)"
+# Production: package version must equal ./VERSION.
+# Pre-release: allow VERSION-<label> (e.g. 1.5.0-rc.1) while ./VERSION stays on the base semver.
 if [[ "$FILE_VER" != "$VER" ]]; then
-  echo "error: VERSION file ($FILE_VER) != package version ($VER)" >&2
-  echo "       Update ./VERSION before packaging." >&2
-  exit 1
+  if [[ ! "$VER" =~ ^${FILE_VER}-[A-Za-z0-9][A-Za-z0-9.-]*$ ]]; then
+    echo "error: VERSION file ($FILE_VER) != package version ($VER)" >&2
+    echo "       Update ./VERSION before packaging (or pass VERSION / VERSION-rc.N for pre-release)." >&2
+    exit 1
+  fi
 fi
 
 need() {

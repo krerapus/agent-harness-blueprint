@@ -35,7 +35,11 @@ verify_one() {
   local ver want
   ver="$(tr -d '[:space:]' < "${top}/VERSION")"
   want="$(echo "$name" | sed -n 's/^blueprint_\([0-9][^_]*\)_.*/\1/p')"
-  [[ "$ver" == "$want" ]] || die "$name: VERSION ($ver) != archive version ($want)"
+  # ./VERSION stays on production semver; pre-release filenames use VERSION-label only.
+  if [[ "$ver" != "$want" ]]; then
+    [[ "$want" =~ ^${ver}-[A-Za-z0-9][A-Za-z0-9.-]*$ ]] \
+      || die "$name: VERSION ($ver) != archive version ($want)"
+  fi
 
   # Smoke: --version must work with ROOT = archive root (Homebrew libexec model).
   local out

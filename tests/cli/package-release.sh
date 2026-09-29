@@ -83,6 +83,17 @@ assert "bump removed placeholders" bash -c "! grep -q '0000000000000000000000000
 
 rm -rf "$TMP" "$FORMULA_TMP"
 
+# Pre-release packaging: artifact names use VERSION-rc.N; ./VERSION stays on the base semver.
+PRE="${VER}-rc.1"
+rm -rf dist
+./scripts/package-release.sh "$PRE"
+assert "pre-release darwin_arm64 artifact exists" test -f "dist/blueprint_${PRE}_darwin_arm64.tar.gz"
+./scripts/verify-release-archive.sh "dist/blueprint_${PRE}_darwin_arm64.tar.gz"
+assert "pre-release verify-release-archive" true
+assert "pre-release rejected wrong base" bash -c "
+  ! ./scripts/package-release.sh 9.9.9-rc.1 >/dev/null 2>&1
+"
+
 echo
 echo "Results: pass=$PASS fail=$FAIL"
 [[ "$FAIL" -eq 0 ]]
