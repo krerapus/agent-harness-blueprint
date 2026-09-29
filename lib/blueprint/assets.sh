@@ -37,13 +37,11 @@ assets_repo_root() {
   assets_sibling_root
 }
 
-# Read version from pack.yaml
+# Read version from pack.yaml (pack semver SoT).
 assets_pack_version_file() {
   local pack_dir="$1"
   if [[ -f "${pack_dir}/pack.yaml" ]]; then
     grep -E '^version:' "${pack_dir}/pack.yaml" | head -1 | awk '{print $2}' | tr -d '"'
-  elif [[ -f "${pack_dir}/VERSION" ]]; then
-    tr -d '[:space:]' < "${pack_dir}/VERSION"
   else
     printf ''
   fi

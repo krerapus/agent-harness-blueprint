@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Docs architecture: merged `docs/distribution.md` into `docs/release.md`; indexes and README links updated; `SECURITY.md` points at `krerapus` + 1.5.x
 - Dropped redundant `builtin/VERSION`; packaging checks root `VERSION` only (CLI semver SoT)
+- `package-release.sh` / `verify-release-archive.sh` allow `VERSION-rc.N` artifact names while `./VERSION` stays on the base semver (CLI Pre-release)
 - Merged former `init` into `install`: one command bootstraps harness + projects runtimes. `blueprint init` errors with a pointer to `install`.
 - `install-contributor` is optional and only for blueprint package checkouts (`agent-harness-blueprint`, `assets-blueprint`, `homebrew-blueprint`); requires prior `install` and layers contributor skills/standards on top. Menu **7) contrib** and help text appear only when the target matches.
 - Profile rename: `startup` → **`product`** (CLI accepts `startup` as a legacy alias and rewrites state to `product`)
