@@ -35,6 +35,8 @@ source "${ROOT}/lib/blueprint/migrations.sh"
 source "${ROOT}/lib/blueprint/xdg.sh"
 # shellcheck source=lib/blueprint/assets.sh
 source "${ROOT}/lib/blueprint/assets.sh"
+# shellcheck source=lib/blueprint/updates.sh
+source "${ROOT}/lib/blueprint/updates.sh"
 # shellcheck source=lib/blueprint/auth.sh
 source "${ROOT}/lib/blueprint/auth.sh"
 
@@ -3155,6 +3157,8 @@ menu_draw() {
   term_reset_clear_flag
   term_smart_clear
   term_show_cursor
+  # Advisory only — fail-open; never blocks the prompt on network errors.
+  updates_ensure_checked 2>/dev/null || true
   render_menu "$(package_version)" "$TARGET"
 }
 

@@ -599,6 +599,134 @@ set -e
 assert_contains "doctor healthy after contributor cleanup" "$out" "Healthy"
 
 echo
+echo "== landing update check =="
+UPD_CACHE="$(mktemp -d "${TMP}/upd-cache.XXXXXX")"
+export XDG_CACHE_HOME="$UPD_CACHE"
+# Shell helpers under test (same modules the CLI sources).
+# shellcheck disable=SC1091
+source "${ROOT}/lib/blueprint/term.sh"
+# shellcheck disable=SC1091
+source "${ROOT}/lib/blueprint/xdg.sh"
+# shellcheck disable=SC1091
+source "${ROOT}/lib/blueprint/assets.sh"
+normalize_version() {
+  local v="${1:-}"
+  v="${v#"${v%%[![:space:]]*}"}"
+  v="${v%"${v##*[![:space:]]}"}"
+  v="${v#v}"
+  v="${v#V}"
+  printf '%s' "$v"
+}
+package_version() {
+  tr -d '[:space:]' < "${ROOT}/VERSION"
+}
+# shellcheck disable=SC1091
+source "${ROOT}/lib/blueprint/updates.sh"
+# shellcheck disable=SC1091
+source "${ROOT}/lib/blueprint/render.sh"
+term_init
+BP_IS_TTY=0
+BP_USE_COLOR=0
+BP_IS_CI=1
+
+if updates_version_gt "1.6.0" "1.5.0"; then
+  echo "  PASS  updates_version_gt newer"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL  updates_version_gt newer"
+  FAIL=$((FAIL + 1))
+fi
+if updates_version_gt "1.5.0" "1.5.0"; then
+  echo "  FAIL  updates_version_gt equal should be false"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS  updates_version_gt equal false"
+  PASS=$((PASS + 1))
+fi
+if updates_version_lt "1.5.0" "1.6.0"; then
+  echo "  PASS  updates_version_lt older"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL  updates_version_lt older"
+  FAIL=$((FAIL + 1))
+fi
+
+LOCAL_CLI="$(package_version)"
+LOCAL_CORE="$(assets_pack_version_file "${CORE_PACK}")"
+
+# Offline + no force → silent
+unset BLUEPRINT_UPDATE_FORCE_CLI_LATEST BLUEPRINT_UPDATE_FORCE_CORE_LATEST || true
+unset BLUEPRINT_UPDATE_FORCE_CORE_LATEST || true
+export BLUEPRINT_OFFLINE=1
+export BLUEPRINT_UPDATE_TTL=0
+updates_ensure_checked
+panel="$(render_update_announcement 2>&1 || true)"
+assert_not_contains "offline: no UPDATE AVAILABLE panel" "$panel" "UPDATE AVAILABLE"
+assert_eq "offline: has_update=0" "${BP_UPDATE_HAS_UPDATE:-0}" "0"
+unset BLUEPRINT_OFFLINE
+
+# Both outdated
+export BLUEPRINT_UPDATE_FORCE_CLI_LATEST="9.9.9"
+export BLUEPRINT_UPDATE_FORCE_CORE_LATEST="9.9.9"
+export BLUEPRINT_UPDATE_TTL=0
+rm -f "$(updates_cache_path)" 2>/dev/null || true
+updates_ensure_checked
+panel="$(render_update_announcement 2>&1 || true)"
+assert_contains "both: panel title" "$panel" "UPDATE AVAILABLE"
+assert_contains "both: CLI row" "$panel" "blueprint CLI"
+assert_contains "both: brew command" "$panel" "brew upgrade blueprint"
+assert_contains "both: skills row" "$panel" "skills core"
+assert_contains "both: assets command" "$panel" "blueprint assets update core"
+assert_eq "both: has_update" "${BP_UPDATE_HAS_UPDATE}" "1"
+
+# CLI only
+export BLUEPRINT_UPDATE_FORCE_CLI_LATEST="9.9.9"
+export BLUEPRINT_UPDATE_FORCE_CORE_LATEST="$LOCAL_CORE"
+rm -f "$(updates_cache_path)" 2>/dev/null || true
+updates_ensure_checked
+panel="$(render_update_announcement 2>&1 || true)"
+assert_contains "cli-only: panel" "$panel" "UPDATE AVAILABLE"
+assert_contains "cli-only: CLI row" "$panel" "blueprint CLI"
+assert_not_contains "cli-only: no skills row" "$panel" "skills core"
+
+# Core only
+export BLUEPRINT_UPDATE_FORCE_CLI_LATEST="$LOCAL_CLI"
+export BLUEPRINT_UPDATE_FORCE_CORE_LATEST="9.9.9"
+rm -f "$(updates_cache_path)" 2>/dev/null || true
+updates_ensure_checked
+panel="$(render_update_announcement 2>&1 || true)"
+assert_contains "core-only: panel" "$panel" "UPDATE AVAILABLE"
+assert_contains "core-only: skills row" "$panel" "skills core"
+assert_not_contains "core-only: no CLI row" "$panel" "blueprint CLI"
+
+# Up to date → silent
+export BLUEPRINT_UPDATE_FORCE_CLI_LATEST="$LOCAL_CLI"
+export BLUEPRINT_UPDATE_FORCE_CORE_LATEST="$LOCAL_CORE"
+rm -f "$(updates_cache_path)" 2>/dev/null || true
+updates_ensure_checked
+panel="$(render_update_announcement 2>&1 || true)"
+assert_not_contains "uptodate: no panel" "$panel" "UPDATE AVAILABLE"
+assert_eq "uptodate: has_update=0" "${BP_UPDATE_HAS_UPDATE}" "0"
+
+# Cache hit: write outdated cache, then ensure with high TTL and no force → still shows
+unset BLUEPRINT_UPDATE_FORCE_CLI_LATEST BLUEPRINT_UPDATE_FORCE_CORE_LATEST
+export BLUEPRINT_UPDATE_TTL=99999
+BP_UPDATE_CLI_CURRENT="1.0.0"
+BP_UPDATE_CLI_LATEST="9.9.9"
+BP_UPDATE_CLI_OUTDATED=1
+BP_UPDATE_CORE_CURRENT=""
+BP_UPDATE_CORE_LATEST=""
+BP_UPDATE_CORE_OUTDATED=0
+BP_UPDATE_HAS_UPDATE=1
+updates_write_cache
+updates_ensure_checked
+panel="$(render_update_announcement 2>&1 || true)"
+assert_contains "cache-hit: panel from cache" "$panel" "UPDATE AVAILABLE"
+assert_contains "cache-hit: CLI from cache" "$panel" "blueprint CLI"
+unset BLUEPRINT_UPDATE_TTL
+rm -rf "$UPD_CACHE"
+
+echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
 if [[ "$FAIL" -gt 0 ]]; then
   exit 1

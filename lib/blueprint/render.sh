@@ -116,6 +116,113 @@ render_header() {
   fi
 }
 
+# Visible width of a string ignoring ANSI CSI sequences (approximate for ASCII/emoji).
+render_visible_len() {
+  local s="$1"
+  # Strip CSI escapes; emoji may still count as >1 column — acceptable for this panel.
+  s="$(printf '%s' "$s" | sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g')"
+  printf '%s' "${#s}"
+}
+
+# Pad / truncate plain text to exact visible width (spaces).
+render_pad_line() {
+  local text="$1"
+  local width="$2"
+  local len pad
+  len="$(render_visible_len "$text")"
+  if [[ "$len" -gt "$width" ]]; then
+    printf '%s' "${text:0:$width}"
+    return 0
+  fi
+  pad=$((width - len))
+  printf '%s%s' "$text" "$(term_repeat ' ' "$pad")"
+}
+
+# One version + command pair inside the update panel.
+# Args: label current latest command tree_prefix vbar yellow reset inner_width
+render_update_announcement_row() {
+  local label="$1" cur="$2" lat="$3" cmd="$4" tree="$5" vbar="$6" y="$7" r="$8" inner="$9"
+  local label_w=18
+  local ver_line cmd_line
+  ver_line="$(printf '  %-*s  %s  →  %s' "$label_w" "$label" "$cur" "$lat")"
+  cmd_line="$(printf '  %s $ %s' "$tree" "$cmd")"
+  printf '  %s%s%s%s%s\n' "$y" "$vbar" "$r" "$(render_pad_line "$ver_line" "$inner")" "$y$vbar$r"
+  printf '  %s%s%s%s%s\n' "$y" "$vbar" "$r" "$(render_pad_line "$cmd_line" "$inner")" "$y$vbar$r"
+}
+
+# Yellow UPDATE AVAILABLE panel (approved landing mock). No-op when up to date.
+render_update_announcement() {
+  if ! command -v updates_should_announce >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! updates_should_announce; then
+    return 0
+  fi
+
+  local use_unicode=0
+  local tl tr bl br h v tree
+  if [[ "${BP_IS_TTY:-0}" -eq 1 && "${BP_IS_CI:-0}" -eq 0 && "${BP_USE_COLOR:-0}" -eq 1 ]]; then
+    use_unicode=1
+  fi
+  if [[ "$use_unicode" -eq 1 ]]; then
+    tl="╭"; tr="╮"; bl="╰"; br="╯"; h="─"; v="│"; tree="└─"
+  else
+    tl="+"; tr="+"; bl="+"; br="+"; h="-"; v="|"; tree="+-"
+  fi
+
+  local width=64
+  local term_w="${BP_TERM_WIDTH:-80}"
+  if [[ "$term_w" -lt 56 ]]; then width=52; fi
+
+  local inner=$((width - 2))
+  local y r
+  y="$(term_color yellow)"
+  r="$(term_color reset)"
+
+  local title_core=" ✨ UPDATE AVAILABLE "
+  if [[ "$use_unicode" -ne 1 ]]; then
+    title_core=" UPDATE AVAILABLE "
+  fi
+  local title_len=${#title_core}
+  local left=1
+  local right=$((inner - left - title_len))
+  if [[ "$right" -lt 1 ]]; then
+    title_core=" UPDATE AVAILABLE "
+    title_len=${#title_core}
+    right=$((inner - left - title_len))
+  fi
+  if [[ "$right" -lt 0 ]]; then right=0; fi
+
+  printf '  %s%s%s%s%s%s%s%s\n' \
+    "$y" "$tl" "$(term_repeat "$h" "$left")" \
+    "${r}$(term_color bold)${title_core}${r}${y}" \
+    "$(term_repeat "$h" "$right")" "$tr" "$r"
+
+  printf '  %s%s%s%s%s\n' "$y" "$v" "$r" "$(render_pad_line "" "$inner")" "$y$v$r"
+
+  local showed=0
+  if [[ "${BP_UPDATE_CLI_OUTDATED:-0}" -eq 1 ]]; then
+    render_update_announcement_row "blueprint CLI" \
+      "${BP_UPDATE_CLI_CURRENT}" "${BP_UPDATE_CLI_LATEST}" \
+      "brew upgrade blueprint" "$tree" "$v" "$y" "$r" "$inner"
+    showed=1
+  fi
+  if [[ "${BP_UPDATE_CORE_OUTDATED:-0}" -eq 1 ]]; then
+    if [[ "$showed" -eq 1 ]]; then
+      printf '  %s%s%s%s%s\n' "$y" "$v" "$r" "$(render_pad_line "" "$inner")" "$y$v$r"
+    fi
+    render_update_announcement_row "skills core" \
+      "${BP_UPDATE_CORE_CURRENT}" "${BP_UPDATE_CORE_LATEST}" \
+      "blueprint assets update core" "$tree" "$v" "$y" "$r" "$inner"
+    showed=1
+  fi
+
+  printf '  %s%s%s%s%s\n' "$y" "$v" "$r" "$(render_pad_line "" "$inner")" "$y$v$r"
+  printf '  %s%s%s%s%s\n' \
+    "$y" "$bl" "$(term_repeat "$h" "$inner")" "$br" "$r"
+  printf '\n'
+}
+
 # Full-screen menu chrome (clears first when called via cmd_menu).
 # Claude-style framed list: soft outer border, columnar rows, no grid guts.
 render_menu() {
@@ -125,6 +232,8 @@ render_menu() {
   display_target="$(term_home_path "$target")"
 
   render_banner "$version" "shared agent blueprints · install · sync" "$display_target"
+
+  render_update_announcement
 
   local width="${BP_TERM_WIDTH:-80}"
   if [[ "$width" -gt 88 ]]; then width=88; fi

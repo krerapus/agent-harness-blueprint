@@ -49,6 +49,8 @@ blueprint menu --target /path/to/your-repo
 
 Menu flow: set **target** first (any local path outside this package), then choose `install` (blueprint → overlay → runtime → skill-mode) / `sync` / `update` / `doctor`. Type `rm` or `del` (keyword only — no number) to remove the blueprint from the target. Press **Esc** on any selection screen to return to the previous state (from the command menu, Esc returns to the target picker).
 
+On each landing draw, the menu checks (cached, default TTL 6h) for a newer **CLI** GitHub Release and newer **core** pack in `catalog.yaml`. When outdated, a yellow `UPDATE AVAILABLE` panel shows the upgrade commands (`brew upgrade blueprint` / `blueprint assets update core`). Offline / network failures are silent (fail-open). Override TTL with `BLUEPRINT_UPDATE_TTL` (seconds); force check with `BLUEPRINT_UPDATE_TTL=0`.
+
 Each mutating action clears the visible terminal once, renders a compact header, streams file events, and prints a summary. CI / non-TTY skips clear and animation.
 
 ## Commands

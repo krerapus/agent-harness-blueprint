@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Landing menu update check: yellow `UPDATE AVAILABLE` panel when a newer CLI release and/or `core` (skills) pack is available (cached, fail-open offline)
 - `scripts/render-release-notes.sh` — compact GitHub Release notes from CHANGELOG `### Highlights` (wired into CLI Release / Pre-release)
 
 ## [1.5.0] - 2026-09-29
