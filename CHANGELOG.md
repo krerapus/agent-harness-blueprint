@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Smoke: do not abort CI when `--target blueprint` cannot resolve a 3-repo workspace (pre-release layout)
+
 ## [1.6.0] - 2026-10-01
 
 ### Highlights

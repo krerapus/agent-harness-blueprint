@@ -518,13 +518,29 @@ assert_contains "help clean example" "$help_out" "clean --force --target"
 help_consumer="$(CI=1 NO_COLOR=1 "$BP" help --target "$TMP" 2>&1)"
 assert_not_contains "help hides contributor for consumer" "$help_consumer" "install-contributor"
 # Named --target: workspace table vs individual package repos.
+# CI layout checks out assets under $ROOT/assets-blueprint (not a full 3-repo workspace),
+# so --target blueprint must not abort the suite under set -e.
+set +e
 help_ws="$(CI=1 NO_COLOR=1 "$BP" help --target blueprint 2>&1)"
-assert_contains "help --target blueprint (workspace) shows contrib" "$help_ws" "install-contributor"
-assert_contains "help workspace examples" "$help_ws" "--target blueprint"
+ws_rc=$?
+set -e
+if [[ -d "${ROOT}/../agent-harness-blueprint" && -d "${ROOT}/../assets-blueprint" && -d "${ROOT}/../homebrew-blueprint" ]]; then
+  assert_eq "help --target blueprint exits 0 on workspace" "$ws_rc" "0"
+  assert_contains "help --target blueprint (workspace) shows contrib" "$help_ws" "install-contributor"
+  assert_contains "help workspace examples" "$help_ws" "--target blueprint"
+else
+  assert_eq "help --target blueprint exits 1 without workspace" "$ws_rc" "1"
+  assert_contains "help --target blueprint missing workspace msg" "$help_ws" "cannot resolve --target 'blueprint'"
+fi
 help_pkg="$(CI=1 NO_COLOR=1 "$BP" help --target agent-harness-blueprint 2>&1)"
 assert_contains "help --target agent-harness-blueprint shows contrib" "$help_pkg" "install-contributor"
-if [[ -d "${ROOT}/../assets-blueprint" ]]; then
-  help_assets="$(CI=1 NO_COLOR=1 "$BP" help --target assets-blueprint 2>&1)"
+if [[ -d "${ROOT}/../assets-blueprint" || -d "${ROOT}/assets-blueprint" ]]; then
+  # Prefer sibling resolve; CI nests assets under ROOT — pass absolute path there.
+  assets_target="assets-blueprint"
+  if [[ ! -d "${ROOT}/../assets-blueprint" && -d "${ROOT}/assets-blueprint" ]]; then
+    assets_target="${ROOT}/assets-blueprint"
+  fi
+  help_assets="$(CI=1 NO_COLOR=1 "$BP" help --target "$assets_target" 2>&1)"
   assert_contains "help --target assets-blueprint shows contrib" "$help_assets" "install-contributor"
 fi
 if [[ -d "${ROOT}/../homebrew-blueprint" ]]; then
