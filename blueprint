@@ -35,6 +35,8 @@ source "${ROOT}/lib/blueprint/migrations.sh"
 source "${ROOT}/lib/blueprint/xdg.sh"
 # shellcheck source=lib/blueprint/assets.sh
 source "${ROOT}/lib/blueprint/assets.sh"
+# shellcheck source=lib/blueprint/updates.sh
+source "${ROOT}/lib/blueprint/updates.sh"
 # shellcheck source=lib/blueprint/auth.sh
 source "${ROOT}/lib/blueprint/auth.sh"
 
@@ -148,6 +150,86 @@ canonicalize_blueprint() {
 }
 
 BLUEPRINT="$(canonicalize_blueprint "$BLUEPRINT")"
+
+# Resolve --target names to absolute paths.
+#   blueprint                 → workspace root (parent containing the three package repos)
+#   agent-harness-blueprint   → CLI package checkout
+#   assets-blueprint          → assets pack checkout
+#   homebrew-blueprint        → Homebrew tap checkout
+bp_package_target_alias() {
+  case "${1:-}" in
+    blueprint|workspace) printf '%s' "blueprint-workspace" ;;
+    agent-harness-blueprint|harness) printf '%s' "agent-harness-blueprint" ;;
+    assets-blueprint|assets) printf '%s' "assets-blueprint" ;;
+    homebrew-blueprint|homebrew|brew) printf '%s' "homebrew-blueprint" ;;
+    *) return 1 ;;
+  esac
+}
+
+# True when dir is the monorepo/workspace table that holds the three package repos.
+bp_is_blueprint_workspace_dir() {
+  local abs="${1:-}"
+  [[ -n "$abs" ]] || return 1
+  [[ -d "${abs}/agent-harness-blueprint" \
+    && -d "${abs}/assets-blueprint" \
+    && -d "${abs}/homebrew-blueprint" ]]
+}
+
+bp_resolve_target() {
+  local raw="${1:-.}"
+  local alias parent candidate
+
+  # Existing path (including . / .. / absolute) — keep prior behavior.
+  if [[ -d "$raw" ]]; then
+    (cd "$raw" && pwd)
+    return 0
+  fi
+
+  if ! alias="$(bp_package_target_alias "$raw")"; then
+    printf '%s' "$raw"
+    return 0
+  fi
+
+  parent="$(cd "${ROOT}/.." 2>/dev/null && pwd || true)"
+
+  # --target blueprint → workspace root (table), not a single package.
+  if [[ "$alias" == "blueprint-workspace" ]]; then
+    if [[ -n "$parent" ]] && bp_is_blueprint_workspace_dir "$parent"; then
+      printf '%s' "$parent"
+      return 0
+    fi
+    if bp_is_blueprint_workspace_dir "$(pwd)"; then
+      pwd
+      return 0
+    fi
+    die "cannot resolve --target 'blueprint' (expected workspace root containing agent-harness-blueprint/, assets-blueprint/, and homebrew-blueprint/). Pass an absolute path to that folder, or target a package name instead."
+  fi
+
+  # Named package: CLI ROOT, sibling of CLI, or ./name under cwd.
+  if [[ "$alias" == "agent-harness-blueprint" ]]; then
+    if [[ "$(basename "$ROOT")" == "agent-harness-blueprint" && -d "$ROOT" ]]; then
+      printf '%s' "$ROOT"
+      return 0
+    fi
+  fi
+
+  if [[ -n "$parent" ]]; then
+    candidate="${parent}/${alias}"
+    if [[ -d "$candidate" ]]; then
+      (cd "$candidate" && pwd)
+      return 0
+    fi
+  fi
+
+  if [[ -d "./${alias}" ]]; then
+    (cd "./${alias}" && pwd)
+    return 0
+  fi
+
+  die "cannot resolve --target '${raw}' → ${alias} (expected sibling checkout under the workspace, or an absolute path). Valid names: blueprint | agent-harness-blueprint | assets-blueprint | homebrew-blueprint"
+}
+
+TARGET="$(bp_resolve_target "$TARGET")"
 
 # Backward-compatible ui_* wrappers used by doctor/menu.
 ui_color() { term_color "$1"; }
@@ -1246,12 +1328,16 @@ contributor_local_marker_present() {
   [[ -f "$f" ]] && grep -qE '^profile:[[:space:]]*package-contributor([[:space:]]|$)' "$f"
 }
 
-# Detect blueprint *package* checkouts (CLI / assets / Homebrew tap) — not consumer apps.
-# Primary: directory basename. Fallback: well-known layout markers.
+# Detect blueprint workspace (table) or package checkouts (CLI / assets / Homebrew).
+# Primary: directory basename / layout. Fallback: well-known package markers.
 bp_blueprint_package_kind() {
   local root="${1:-.}"
   local abs base
   abs="$(cd "$root" 2>/dev/null && pwd || echo "$root")"
+  if bp_is_blueprint_workspace_dir "$abs"; then
+    printf '%s' "workspace"
+    return 0
+  fi
   base="$(basename "$abs")"
   case "$base" in
     agent-harness-blueprint) printf '%s' "harness"; return 0 ;;
@@ -1273,6 +1359,7 @@ bp_blueprint_package_kind() {
   printf '%s' ""
 }
 
+# Eligible for install-contributor / contrib menu (workspace table OR one package repo).
 bp_is_blueprint_package_dir() {
   local kind
   kind="$(bp_blueprint_package_kind "$1")"
@@ -1634,7 +1721,8 @@ cmd_install_contributor() {
   abs_dest="$(cd "$dest_root" 2>/dev/null && pwd || echo "$dest_root")"
 
   if ! bp_is_blueprint_package_dir "$abs_dest"; then
-    die "install-contributor is optional for blueprint package checkouts only (agent-harness-blueprint, assets-blueprint, homebrew-blueprint) — got: $abs_dest"
+    die "install-contributor targets the workspace table or a package repo — use --target blueprint | agent-harness-blueprint | assets-blueprint | homebrew-blueprint (got: $abs_dest)"
+
   fi
 
   local state="${abs_dest}/${STATE_FILE}"
@@ -2663,7 +2751,8 @@ EOF
   if bp_is_blueprint_package_dir "${TARGET:-.}"; then
     cat <<'EOF'
   install-contributor  Optional: add contributor skills/standards on top of install
-                       (blueprint package dirs only: agent-harness / assets / homebrew)
+                       (--target blueprint = workspace table with all three repos, or
+                       agent-harness-blueprint | assets-blueprint | homebrew-blueprint)
 EOF
   fi
   cat <<'EOF'
@@ -2688,7 +2777,11 @@ Flags:
   --skill-mode MODE    rebase | merge  (install/sync/update; default rebase)
                        rebase: gitignore entire .cursor/ .claude/ .agents/
                        merge:  gitignore only blueprint skills/commands/rules/templates
-  --target PATH        Project root (consumer app, or a blueprint package checkout)
+  --target PATH|NAME   Consumer path, workspace table, or package name:
+                       blueprint                 → workspace root (has the three repos)
+                       agent-harness-blueprint  → CLI package
+                       assets-blueprint         → assets pack
+                       homebrew-blueprint       → Homebrew tap
   --dry-run            Print actions without writing
   --force              Overwrite unmanaged conflicting runtime files; also required for non-interactive rm/del/clean
   --offline            Prefer local assets only (with: assets doctor)
@@ -2726,10 +2819,15 @@ EOF
     cat <<'EOF'
 
 Package contributors (optional add-on after install):
-  ./blueprint install --runtime all --target .
-  ./blueprint install-contributor --runtime all --target .
+  # Workspace table (all three repos under one root) — work across the ecosystem
+  ./blueprint install --runtime all --target blueprint
+  ./blueprint install-contributor --runtime all --target blueprint
+  # Or one package you are actively editing
+  ./blueprint install-contributor --runtime all --target agent-harness-blueprint
+  ./blueprint install-contributor --runtime all --target assets-blueprint
+  ./blueprint install-contributor --runtime all --target homebrew-blueprint
   Layers contributor/ + skill-creator onto the install harness (gitignored runtimes).
-  Shown for agent-harness-blueprint, assets-blueprint, and homebrew-blueprint only.
+  Not for unrelated consumer apps.
 EOF
   fi
 }
@@ -3155,6 +3253,8 @@ menu_draw() {
   term_reset_clear_flag
   term_smart_clear
   term_show_cursor
+  # Advisory only — fail-open; never blocks the prompt on network errors.
+  updates_ensure_checked 2>/dev/null || true
   render_menu "$(package_version)" "$TARGET"
 }
 

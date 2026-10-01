@@ -23,8 +23,10 @@ package_skill_names() {
     context-recall \
     design-modules \
     diagnose-bugs \
+    do \
     docs-style \
     generate-test-cases \
+    grill-me \
     i-have-adhd \
     ponytail \
     ponytail-audit \
@@ -168,7 +170,7 @@ refresh_package_rules_into() {
 # Grandfathered identities that may violate action-first naming (vendored / protocol).
 package_skill_naming_grandfathered() {
   case "$1" in
-    skill-creator|context-recall|task-execution|docs-style|i-have-adhd|ponytail|ponytail-review|ponytail-audit|ponytail-debt|ponytail-gain|ponytail-help)
+    skill-creator|context-recall|task-execution|docs-style|i-have-adhd|ponytail|ponytail-review|ponytail-audit|ponytail-debt|ponytail-gain|ponytail-help|do|grill-me)
       return 0
       ;;
     *)
