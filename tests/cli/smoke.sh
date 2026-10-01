@@ -509,12 +509,34 @@ assert_contains "help lists skill-mode" "$help_out" "--skill-mode"
 assert_contains "help lists codex runtime" "$help_out" "codex"
 assert_contains "help keyword note" "$help_out" "keyword only"
 assert_contains "help lists install-contributor" "$help_out" "install-contributor"
+assert_contains "help target package names" "$help_out" "agent-harness-blueprint"
+assert_contains "help target workspace name" "$help_out" "blueprint                 → workspace root"
 assert_contains "help force example" "$help_out" "update --force --target"
 assert_contains "help menu force note" "$help_out" 'Typing "update --force" in the'
 assert_contains "help lists clean" "$help_out" "clean"
 assert_contains "help clean example" "$help_out" "clean --force --target"
 help_consumer="$(CI=1 NO_COLOR=1 "$BP" help --target "$TMP" 2>&1)"
 assert_not_contains "help hides contributor for consumer" "$help_consumer" "install-contributor"
+# Named --target: workspace table vs individual package repos.
+help_ws="$(CI=1 NO_COLOR=1 "$BP" help --target blueprint 2>&1)"
+assert_contains "help --target blueprint (workspace) shows contrib" "$help_ws" "install-contributor"
+assert_contains "help workspace examples" "$help_ws" "--target blueprint"
+help_pkg="$(CI=1 NO_COLOR=1 "$BP" help --target agent-harness-blueprint 2>&1)"
+assert_contains "help --target agent-harness-blueprint shows contrib" "$help_pkg" "install-contributor"
+if [[ -d "${ROOT}/../assets-blueprint" ]]; then
+  help_assets="$(CI=1 NO_COLOR=1 "$BP" help --target assets-blueprint 2>&1)"
+  assert_contains "help --target assets-blueprint shows contrib" "$help_assets" "install-contributor"
+fi
+if [[ -d "${ROOT}/../homebrew-blueprint" ]]; then
+  help_brew="$(CI=1 NO_COLOR=1 "$BP" help --target homebrew-blueprint 2>&1)"
+  assert_contains "help --target homebrew-blueprint shows contrib" "$help_brew" "install-contributor"
+fi
+set +e
+bad_alias="$(CI=1 NO_COLOR=1 "$BP" help --target not-a-blueprint-package 2>&1)"
+bad_rc=$?
+set -e
+assert_eq "unknown name help still exits 0" "$bad_rc" "0"
+assert_not_contains "unknown name hides contrib" "$bad_alias" "install-contributor"
 rm -rf "$del_t"
 
 echo "== clean backups =="
@@ -548,7 +570,7 @@ out="$(CI=1 NO_COLOR=1 "$BP" install-contributor --runtime cursor --target "$TMP
 rc=$?
 set -e
 assert_eq "install-contributor rejects consumer target" "$rc" "1"
-assert_contains "install-contributor package-only msg" "$out" "blueprint package checkouts only"
+assert_contains "install-contributor package-only msg" "$out" "workspace table or a package repo"
 assert_eq "consumer has no contributor-standards" \
   "$([[ -f "$TMP/.cursor/rules/contributor-standards.mdc" ]] && echo yes || echo no)" "no"
 

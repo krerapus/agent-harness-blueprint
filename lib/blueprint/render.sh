@@ -247,7 +247,7 @@ render_menu() {
   render_panel_cmd_row "5" "target" "Change consumer project path" "$width"
   render_panel_cmd_row "6" "switch" "Change profile (default / engineering / product)" "$width"
   if bp_is_blueprint_package_dir "$target"; then
-    render_panel_cmd_row "7" "contrib" "Optional: contributor skills/standards on top of install" "$width"
+    render_panel_cmd_row "7" "contrib" "install-contributor (workspace blueprint/ or one package repo)" "$width"
   fi
   render_panel_sep "$width"
   render_panel_cmd_row "h" "help" "Show CLI usage" "$width" "cyan" "left"

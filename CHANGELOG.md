@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Landing menu update check: yellow `UPDATE AVAILABLE` panel when a newer CLI release and/or `core` (skills) pack is available (cached, fail-open offline)
 - Grandfather `do` / `grill-me` skill names; document `/do` in slash-commands inventory
+- `--target` names: `blueprint` → workspace root (three package repos); `agent-harness-blueprint` | `assets-blueprint` | `homebrew-blueprint` → one package; `install-contributor` works on either
 - `scripts/render-release-notes.sh` — compact GitHub Release notes from CHANGELOG `### Highlights` (wired into CLI Release / Pre-release)
 
 ## [1.5.0] - 2026-09-29
