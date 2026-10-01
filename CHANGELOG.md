@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.6.0] - 2026-10-01
+
+### Highlights
+
+- Landing-menu update check for CLI + core packs (yellow `UPDATE AVAILABLE` panel)
+- Named `--target` for workspace (`blueprint`) and package repos; clearer `install-contributor`
+- Support for `/do` + `grill-me` skill names from assets core 1.5.3
+
+### Added
+
 - Landing menu update check: yellow `UPDATE AVAILABLE` panel when a newer CLI release and/or `core` (skills) pack is available (cached, fail-open offline)
 - Grandfather `do` / `grill-me` skill names; document `/do` in slash-commands inventory
 - `--target` names: `blueprint` → workspace root (three package repos); `agent-harness-blueprint` | `assets-blueprint` | `homebrew-blueprint` → one package; `install-contributor` works on either
@@ -73,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Harness skills, workflow, and TUI refinements for install/sync flows
 
-[Unreleased]: https://github.com/krerapus/agent-harness-blueprint/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/krerapus/agent-harness-blueprint/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/krerapus/agent-harness-blueprint/releases/tag/v1.6.0
 [1.5.0]: https://github.com/krerapus/agent-harness-blueprint/releases/tag/v1.5.0
 [1.2.0]: https://github.com/krerapus/agent-harness-blueprint/releases/tag/v1.2.0
