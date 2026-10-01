@@ -7,6 +7,7 @@ After install, the same playbooks appear under `.cursor/commands/`, `.claude/com
 | Command | Source (core pack) | Purpose |
 |---|---|---|
 | `/start` | `harness/commands/start.md` | Branch + reset task memory skeletons (`PLANNING`, `RUN_LOG`, caches). |
+| `/do` | `harness/commands/do.md` | Outcome entry → Loop Engineering (`do` + `grill-me` skills). See [assets loop-engineering](https://github.com/krerapus/assets-blueprint/blob/master/docs/loop-engineering.md). |
 | `/commit` | `harness/commands/commit.md` | Inspect diffs/staging, craft conventional commits, push. Does **not** open a PR/MR — use `/pr`. *(Template references JIRA + guarded branches—adapt on GitHub-only repos.)* |
 | `/review` | `harness/commands/review.md` | Diff review checklist (security, correctness, performance). |
 | `/sync-dev` | `blueprints/engineering/gitlab/commands/` | Merge latest `develop` using `merge-tree` previews + conflict playbook. |

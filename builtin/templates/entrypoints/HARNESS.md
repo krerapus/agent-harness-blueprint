@@ -18,7 +18,7 @@ This file is managed by **shared-agent-blueprints**. Project-specific agent role
 
 | Layer | Role |
 |---|---|
-| **Commands** | Named playbooks (`/start`, `/review`, `/commit`, forge overlays) |
+| **Commands** | Named playbooks (`/start`, `/do`, `/review`, `/commit`, forge overlays) |
 | **Rules** | Always-on or path-scoped policy |
 | **Skills** | Curated multi-step procedures (`SKILL.md` + optional templates) |
 | **Memory files** | Cross-session planning, decisions, telemetry, scratch state |
@@ -44,8 +44,8 @@ Prefer updating the blueprint package, then `./blueprint update` (harness) and `
 ## AI workflow
 
 1. **Orient** — Read this file (including **Skill use cases**), then the project agent contract (`AGENTS.md` / `agents.md`), then `AGENTS.local.md` / `CLAUDE.local.md` if present, then relevant rules/skills for the task.
-2. **Start a task** — Run `/start` (or follow that playbook): create a feature/hotfix branch and reset task-scoped memory templates.
-3. **Plan** — Keep goals and checklists truthful in `PLANNING.md`.
+2. **Start a task** — Run `/start` (or follow that playbook): create a feature/hotfix branch and reset task-scoped memory templates. For a vague outcome without a plan, prefer `/do` (requirement discovery → confirm → execute).
+3. **Plan** — Keep goals and checklists truthful in `PLANNING.md` (and Requirement Contract when using `/do`).
 4. **Execute in batches** — Implement, then update memory together:
    - `PLANNING.md` — checkboxes / done list
    - `DECISIONS.md` — what changed and why
@@ -62,6 +62,7 @@ Skills live under the active runtime (`<runtime>/skills/`). Prefer matching a sk
 
 | Situation | Skill | Policy |
 |---|---|---|
+| Vague outcome / “just do this for me” | `/do` (+ `grill-me`) | **Opt-in** (`disable-model-invocation`). Requirement discovery → confirm → Decision Engine → existing skills. Doc: pack `docs/loop-engineering.md`. |
 | Multi-step fix, setup, or “what do I do next?” | `/i-have-adhd` | **Ask once:** “Enable ADHD-friendly output for this session?” Opt-in only (`disable-model-invocation`). Off: `stop adhd mode` / `normal mode`. |
 | Implement, fix, refactor, or choose a library | `/ponytail` | **Prefer on coding tasks** (or ask once). Levels: `lite` \| `full` (default) \| `ultra`. Off: `stop ponytail` / `normal mode`. |
 | Diff feels bloated / over-engineered | `/ponytail-review` | **Suggest after implementation** before ship. |
